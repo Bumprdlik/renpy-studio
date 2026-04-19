@@ -330,6 +330,28 @@ app.post('/api/stub/:location/:state', (req, res) => {
     res.json({ ok: true, created: true });
 });
 
+app.get('/api/preview/:location/:state', (req, res) => {
+    const { location, state } = req.params;
+    const filePath = resolveFilePath(location);
+    if (!fs.existsSync(filePath)) return res.json({ lines: [] });
+
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const labelName = buildLabelName(location, state);
+    const lines = content.split('\n');
+
+    const startIdx = lines.findIndex(l => l.trim() === `label ${labelName}:`);
+    if (startIdx === -1) return res.json({ lines: [] });
+
+    const CHAR_RE = /^\s+(a|l|narrator)\s+"((?:[^"\\]|\\.)*)"/;
+    const preview = [];
+    for (let i = startIdx + 1; i < lines.length && preview.length < 6; i++) {
+        if (lines[i].match(/^label\s+/)) break;
+        const m = lines[i].match(CHAR_RE);
+        if (m) preview.push({ who: m[1], text: unescapeRpyString(m[2]) });
+    }
+    res.json({ lines: preview });
+});
+
 app.get('/api/label-line/:location/:state', (req, res) => {
     const { location, state } = req.params;
     const filePath = resolveFilePath(location);
