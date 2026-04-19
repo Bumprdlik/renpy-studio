@@ -24,6 +24,8 @@ A local Node.js tool for editing Ren'Py dispatcher pattern files. It reads/write
 |---|---|---|
 | GET | `/api/config` | Returns loaded config + project path |
 | GET | `/api/status` | Returns grid: `{ [location]: { [state]: "written"\|"stub"\|"missing" } }` |
+| GET | `/api/stats` | Returns `{ total, written, stub, missing, byChar: { a, l, narrator } }` |
+| GET | `/api/search?q=` | Full-text search across all source files; returns `[{ location, label, line, text }]` (max 60) |
 | GET | `/api/file/:location` | Returns EN source file content + path |
 | PUT | `/api/file/:location` | Saves EN source file |
 | GET | `/api/tl-file/:location` | Returns tl file content + path (null if missing) |
@@ -52,6 +54,14 @@ Parses `.rpy` content to determine label status:
 5. `buildTlContent(...)` — assembles `translate czech <id>:` blocks + `translate czech strings:` section
 
 API key resolved in order: `req.body.apiKey` → `ANTHROPIC_API_KEY` env → `config.anthropicApiKey`.
+
+## Frontend features
+
+- **Progress bar** — computed client-side from `gridData` on every `refreshGrid()`, no extra endpoint
+- **Keyboard nav** — `kbdLocIdx`/`kbdStateIdx` track focused cell; keydown on `#grid-scroll` (tabindex=0); `renderGrid()` applies `.kbd-focus` class
+- **Search** — debounced 300ms input → `GET /api/search?q=`; results highlight matches with `<em>`; click resolves location/state from label name suffix
+- **Split view** — second read-only Monaco instance (`enEditor`) in `#en-panel`; toggled by `splitActive` flag; visible only in CZ mode with a cell open; `loadEnPanel()` loads EN source and scrolls to label
+- **Character stats** — `loadStats()` fetches `/api/stats`, renders `a/l/narrator` counts in `#stats-bar` below legend
 
 ## File watch
 

@@ -6,11 +6,16 @@ Visual editor for the Ren'Py dispatcher pattern — shows a **location × state*
 
 - Grid overview of all `label <prefix>_<location>_<state>:` combinations
 - Color coding: ✓ written / ~ stub / ✗ missing
+- **Progress bar** — `X/Y written` with fill bar at the top of the grid panel
+- **Character stats** — `a: N | l: N | narrator: N` dialogue line counts below the legend
 - Click any cell → opens the corresponding `.rpy` file in Monaco editor, scrolled to that label
+- **Keyboard navigation** — arrow keys move focus in the grid, Enter opens the selected cell
 - **Hover over a cell** → tooltip with the first 6 dialogue lines (Alfred/Lara/narrator color coded)
+- **Search** — search bar above the grid, searches across all source files, click result to navigate
 - `Ctrl+S` saves the file and refreshes the grid
 - **Auto-refresh** — grid and editor update automatically when `.rpy` files change on disk (e.g. saved from VS Code)
 - **EN/CZ toggle** — switch between source file and `tl/czech/` translation file for any cell
+- **Split view** — in CZ mode, `⧉ Split EN` button shows the EN source as a read-only reference panel beside the CZ editor
 - **Generate CZ** — one-click Czech translation of the current file via Claude API (requires Anthropic API key)
 - Auto-creates stub labels when you click a missing cell
 
