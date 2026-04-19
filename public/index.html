@@ -20,6 +20,11 @@
   .lang-btn.active { background: #0e639c; color: #fff; }
   .lang-btn:hover:not(.active) { background: #333; color: #ccc; }
   #tl-warning { font-size: 11px; color: #c8a838; background: #2a2500; padding: 3px 10px; border-radius: 3px; display: none; }
+  #generate-btn { padding: 5px 14px; background: #2d6e2d; color: #aee8ae; border: 1px solid #3a8a3a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
+  #generate-btn:hover { background: #3a8a3a; }
+  #generate-btn:disabled { background: #333; color: #666; border-color: #444; cursor: default; }
+  #api-key-input { padding: 4px 8px; background: #1a1a1a; color: #ccc; border: 1px solid #444; border-radius: 3px; font-size: 12px; width: 240px; display: none; }
+  #api-key-input::placeholder { color: #555; }
 
   /* Layout */
   #main { display: flex; flex: 1; overflow: hidden; }
@@ -62,6 +67,8 @@
     <button class="lang-btn active" data-lang="en">EN</button>
     <button class="lang-btn" data-lang="cz">CZ</button>
   </div>
+  <input id="api-key-input" type="password" placeholder="Anthropic API key (optional)" />
+  <button id="generate-btn">Generate CZ</button>
   <button id="save-btn" disabled>Save</button>
   <span id="save-status"></span>
   <span id="tl-warning">⚠ tl file missing — run Generate Translations in Ren'Py Launcher</span>
@@ -323,6 +330,7 @@ async function openLabel(location, state) {
   document.getElementById('monaco').style.display = 'block';
   isDirty = false;
   document.getElementById('save-status').textContent = '';
+  updateGenerateBtn();
 
   // Scroll to label
   const lineEndpoint = isCz
@@ -365,6 +373,8 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
     document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
     if (currentLocation && currentState) {
       await openLabel(currentLocation, currentState);
+    } else {
+      updateGenerateBtn();
     }
   });
 });
@@ -374,6 +384,49 @@ window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault();
     if (currentLocation && isDirty) saveFile(currentLocation);
+  }
+});
+
+function updateGenerateBtn() {
+  const btn = document.getElementById('generate-btn');
+  const keyInput = document.getElementById('api-key-input');
+  const show = currentLang === 'cz' && !!currentLocation;
+  btn.style.display = show ? 'inline-block' : 'none';
+  keyInput.style.display = show ? 'inline-block' : 'none';
+}
+
+document.getElementById('generate-btn').addEventListener('click', async () => {
+  if (!currentLocation) return;
+  const btn = document.getElementById('generate-btn');
+  const apiKey = document.getElementById('api-key-input').value.trim();
+
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  document.getElementById('save-status').textContent = '⟳ translating...';
+
+  try {
+    const res = await fetch(`/api/generate-tl/${currentLocation}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: apiKey || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Server error');
+
+    if (data.empty) {
+      document.getElementById('save-status').textContent = '⚠ no dialogue found in source';
+    } else {
+      document.getElementById('tl-warning').style.display = 'none';
+      editor.setModel(monaco.editor.createModel(data.content, 'renpy'));
+      document.getElementById('save-btn').disabled = false;
+      isDirty = true;
+      document.getElementById('save-status').textContent = '● review & save';
+    }
+  } catch (e) {
+    document.getElementById('save-status').textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate CZ';
   }
 });
 </script>
