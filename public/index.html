@@ -305,11 +305,12 @@ async function openLabel(location, state) {
 
   const tlWarning = document.getElementById('tl-warning');
   if (isCz && fileRes.content === null) {
+    const status = gridData[location]?.[state] || 'missing';
+    const hint = status === 'stub' || status === 'missing'
+      ? `# No tl file yet — write EN dialogue first, then run Generate Translations in Ren'Py Launcher.\n# (Labels with only # TODO have nothing to translate.)\n`
+      : `# tl file not found: ${fileRes.path}\n# Run Generate Translations in Ren'Py Launcher.\n`;
     tlWarning.style.display = 'inline';
-    editor.setModel(monaco.editor.createModel(
-      `# tl file not found: ${fileRes.path}\n# Run Generate Translations in Ren'Py Launcher first.\n`,
-      'renpy'
-    ));
+    editor.setModel(monaco.editor.createModel(hint, 'renpy'));
     document.getElementById('save-btn').disabled = true;
   } else {
     tlWarning.style.display = 'none';
