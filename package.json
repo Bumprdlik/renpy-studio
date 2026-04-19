@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Visual editor for Ren'Py dispatcher pattern (location × state label grid)",
   "main": "server.js",
+  "bin": {
+    "dispatcher-editor": "./server.js"
+  },
   "scripts": {
     "start": "node server.js"
   },
