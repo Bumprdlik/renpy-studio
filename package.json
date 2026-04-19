@@ -1,0 +1,12 @@
+{
+  "name": "renpy-dispatcher-editor",
+  "version": "1.0.0",
+  "description": "Visual editor for Ren'Py dispatcher pattern (location × state label grid)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

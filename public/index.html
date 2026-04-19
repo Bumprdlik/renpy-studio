@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ren'Py Dispatcher Editor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1e1e1e; color: #ccc; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; }
+
+  /* Header */
+  #header { background: #252526; padding: 10px 16px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #333; }
+  #header h1 { font-size: 15px; font-weight: 600; color: #eee; }
+  #project-path { font-size: 11px; color: #666; }
+  #save-btn { margin-left: auto; padding: 6px 18px; background: #0e639c; color: #fff; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; }
+  #save-btn:hover { background: #1177bb; }
+  #save-btn:disabled { background: #444; cursor: default; }
+  #save-status { font-size: 12px; color: #888; }
+
+  /* Layout */
+  #main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Grid panel */
+  #grid-panel { width: 340px; min-width: 280px; background: #252526; border-right: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; }
+  #grid-panel h2 { padding: 10px 14px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #888; border-bottom: 1px solid #333; }
+  #grid-scroll { overflow-y: auto; flex: 1; padding: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th { padding: 6px 8px; text-align: left; color: #888; font-weight: 500; border-bottom: 1px solid #333; }
+  th.state-col { color: #aaa; }
+  td { padding: 4px 6px; }
+  .cell { padding: 5px 8px; border-radius: 3px; cursor: pointer; text-align: center; font-size: 11px; font-weight: 500; border: 1px solid transparent; transition: filter 0.1s; white-space: nowrap; }
+  .cell:hover { filter: brightness(1.2); }
+  .cell.active { border-color: #fff !important; }
+  .cell.written  { background: #1a4a1a; color: #6dbf6d; border-color: #2d6e2d; }
+  .cell.stub     { background: #4a3a00; color: #c8a838; border-color: #6e5500; }
+  .cell.missing  { background: #4a1a1a; color: #c86868; border-color: #6e2d2d; }
+
+  /* Legend */
+  #legend { padding: 10px 14px; border-top: 1px solid #333; display: flex; gap: 12px; font-size: 11px; }
+  .leg { display: flex; align-items: center; gap: 5px; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* Editor panel */
+  #editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #editor-header { padding: 8px 14px; background: #2d2d2d; border-bottom: 1px solid #333; font-size: 12px; color: #888; display: flex; align-items: center; gap: 10px; }
+  #editor-header span { color: #ccc; }
+  #editor-header .label-badge { background: #0e639c; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; }
+  #monaco { flex: 1; }
+  #no-file { flex: 1; display: flex; align-items: center; justify-content: center; color: #555; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Ren'Py Dispatcher Editor</h1>
+  <span id="project-path">loading...</span>
+  <button id="save-btn" disabled>Save</button>
+  <span id="save-status"></span>
+</div>
+
+<div id="main">
+  <div id="grid-panel">
+    <h2>Label Coverage</h2>
+    <div id="grid-scroll">
+      <table id="grid-table"><tbody></tbody></table>
+    </div>
+    <div id="legend">
+      <div class="leg"><div class="leg-dot" style="background:#1a4a1a;border:1px solid #2d6e2d"></div> written</div>
+      <div class="leg"><div class="leg-dot" style="background:#4a3a00;border:1px solid #6e5500"></div> stub</div>
+      <div class="leg"><div class="leg-dot" style="background:#4a1a1a;border:1px solid #6e2d2d"></div> missing</div>
+    </div>
+  </div>
+
+  <div id="editor-panel">
+    <div id="editor-header">
+      <span id="editor-file">—</span>
+      <span id="editor-label" class="label-badge" style="display:none"></span>
+    </div>
+    <div id="no-file">← Select a cell to edit</div>
+    <div id="monaco" style="display:none"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+<script>
+let editor = null;
+let currentLocation = null;
+let currentState = null;
+let config = null;
+let gridData = {};
+let isDirty = false;
+
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
+require(['vs/editor/editor.main'], () => {
+  // Register a basic renpy language for syntax colouring
+  monaco.languages.register({ id: 'renpy' });
+  monaco.languages.setMonarchTokensProvider('renpy', {
+    tokenizer: {
+      root: [
+        [/^(label|init|screen|menu|image|define|default|transform)\b/, 'keyword'],
+        [/^\s+(scene|show|hide|call|jump|return|pause|with|if|elif|else|for|while)\b/, 'keyword'],
+        [/\$/, 'keyword'],
+        [/"[^"]*"/, 'string'],
+        [/#.*$/, 'comment'],
+        [/\b(True|False|None)\b/, 'constant'],
+      ]
+    }
+  });
+  monaco.editor.defineTheme('renpy-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'keyword', foreground: '569cd6' },
+      { token: 'string', foreground: 'ce9178' },
+      { token: 'comment', foreground: '6a9955', fontStyle: 'italic' },
+      { token: 'constant', foreground: '4ec9b0' },
+    ],
+    colors: {}
+  });
+
+  editor = monaco.editor.create(document.getElementById('monaco'), {
+    language: 'renpy',
+    theme: 'renpy-dark',
+    fontSize: 13,
+    lineNumbers: 'on',
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    wordWrap: 'off',
+    automaticLayout: true,
+  });
+
+  editor.onDidChangeModelContent(() => {
+    if (!isDirty) {
+      isDirty = true;
+      document.getElementById('save-btn').disabled = false;
+      document.getElementById('save-status').textContent = '● unsaved';
+    }
+  });
+
+  init();
+});
+
+async function init() {
+  const cfgRes = await fetch('/api/config').then(r => r.json());
+  config = cfgRes.config;
+  document.getElementById('project-path').textContent = cfgRes.projectPath;
+  await refreshGrid();
+}
+
+async function refreshGrid() {
+  gridData = await fetch('/api/status').then(r => r.json());
+  renderGrid();
+}
+
+function renderGrid() {
+  const tbody = document.querySelector('#grid-table tbody');
+  tbody.innerHTML = '';
+
+  // Header row
+  const headerRow = document.createElement('tr');
+  headerRow.innerHTML = '<th class="state-col">state \\ location</th>' +
+    config.locations.map(loc => `<th>${loc}</th>`).join('');
+  tbody.appendChild(headerRow);
+
+  for (const state of config.states) {
+    const tr = document.createElement('tr');
+    const tdState = document.createElement('td');
+    tdState.style.color = '#aaa';
+    tdState.style.fontWeight = '500';
+    tdState.style.padding = '4px 8px';
+    tdState.textContent = state;
+    tr.appendChild(tdState);
+
+    for (const loc of config.locations) {
+      const status = gridData[loc]?.[state] || 'missing';
+      const td = document.createElement('td');
+      const cell = document.createElement('div');
+      cell.className = `cell ${status}`;
+      cell.textContent = status === 'written' ? '✓' : status === 'stub' ? '~' : '✗';
+      cell.title = `alfred_${loc}_${state} — ${status}`;
+      if (loc === currentLocation && state === currentState) cell.classList.add('active');
+      cell.addEventListener('click', () => openLabel(loc, state));
+      td.appendChild(cell);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+}
+
+async function openLabel(location, state) {
+  // Save current file if dirty before switching
+  if (isDirty && currentLocation && currentLocation !== location) {
+    await saveFile(currentLocation, false);
+  }
+
+  currentLocation = location;
+  currentState = state;
+  renderGrid();
+
+  const labelName = config.labelPattern
+    .replace('{location}', location)
+    .replace('{state}', state);
+
+  document.getElementById('editor-label').textContent = labelName;
+  document.getElementById('editor-label').style.display = 'inline';
+
+  // Load file if it's a different location than current editor
+  const fileRes = await fetch(`/api/file/${location}`).then(r => r.json());
+  document.getElementById('editor-file').textContent = fileRes.path;
+
+  document.getElementById('no-file').style.display = 'none';
+  document.getElementById('monaco').style.display = 'block';
+
+  const model = monaco.editor.createModel(fileRes.content, 'renpy');
+  editor.setModel(model);
+  isDirty = false;
+  document.getElementById('save-btn').disabled = false;
+  document.getElementById('save-status').textContent = '';
+
+  // Scroll to label
+  const lineRes = await fetch(`/api/label-line/${location}/${state}`).then(r => r.json());
+  if (lineRes.line > 0) {
+    editor.revealLineInCenter(lineRes.line);
+    editor.setPosition({ lineNumber: lineRes.line, column: 1 });
+    editor.focus();
+  }
+}
+
+async function saveFile(location, updateStatus = true) {
+  const content = editor.getValue();
+  await fetch(`/api/file/${location}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  isDirty = false;
+  document.getElementById('save-btn').disabled = true;
+  if (updateStatus) {
+    document.getElementById('save-status').textContent = '✓ saved';
+    setTimeout(() => document.getElementById('save-status').textContent = '', 2000);
+  }
+  await refreshGrid();
+}
+
+document.getElementById('save-btn').addEventListener('click', () => {
+  if (currentLocation) saveFile(currentLocation);
+});
+
+// Ctrl+S
+window.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (currentLocation && isDirty) saveFile(currentLocation);
+  }
+});
+</script>
+</body>
+</html>
