@@ -7,7 +7,12 @@ Visual editor for the Ren'Py dispatcher pattern — shows a **location × state*
 - Grid overview of all `label <prefix>_<location>_<state>:` combinations
 - Color coding: ✓ written / ~ stub / ✗ missing
 - Click any cell → opens the corresponding `.rpy` file in Monaco editor, scrolled to that label
+- **Hover over a cell** → tooltip with the first 6 dialogue lines (Alfred/Lara/narrator color coded)
 - `Ctrl+S` saves the file and refreshes the grid
+- **Auto-refresh** — grid and editor update automatically when `.rpy` files change on disk (e.g. saved from VS Code)
+- **EN/CZ toggle** — switch between source file and `tl/czech/` translation file for any cell
+- **Generate CZ** — one-click Czech translation of the current file via Claude API (requires Anthropic API key)
+- Auto-creates stub labels when you click a missing cell
 
 ## Installation
 
@@ -46,14 +51,25 @@ dispatcher-editor --project=/path/to/your-renpy-project
 | `locations` | List of locations | `["bathroom", "bedroom"]` |
 | `states` | List of states (e.g. outfit) | `["naked", "towel", "negligee"]` |
 | `port` | Port for the local server (default: 3000) | `3000` |
+| `tlDir` | Translation directory relative to `gameDir` (default: `"tl/czech"`) | `"tl/czech"` |
+| `characters` | Character variable names for dialogue detection (default: `["a","l","narrator"]`) | `["a","l","narrator"]` |
+| `anthropicApiKey` | Anthropic API key for Generate CZ (optional, prefer env var) | `"sk-ant-..."` |
 
 Copy `.dispatcher.example.json` to `.dispatcher.json` in your project and adjust the values.
+
+## Generate CZ (AI translation)
+
+Switch to **CZ** mode, open any cell, then click **Generate CZ**. The server parses the English source, computes Ren'Py-compatible MD5 hashes, calls Claude to translate, and loads the result into Monaco for review. Save with `Ctrl+S` when happy.
+
+API key priority: UI input field → `ANTHROPIC_API_KEY` env var → `anthropicApiKey` in `.dispatcher.json`.
+
+Uses Claude Haiku — costs under $0.01 per file.
 
 ## How label detection works
 
 A label is considered:
 - **written** — `label alfred_X_Y:` exists and the block contains at least one dialogue line (`a "..."` / `l "..."`)
-- **stub** — label exists but has no dialogue (only `return` or empty)
+- **stub** — label exists but has no dialogue (only `return` or `# TODO`)
 - **missing** — label line not found in the file
 
 Fallthrough labels (multiple `label X:` lines sharing one block) are handled correctly.
