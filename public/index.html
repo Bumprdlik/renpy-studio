@@ -15,6 +15,11 @@
   #save-btn:hover { background: #1177bb; }
   #save-btn:disabled { background: #444; cursor: default; }
   #save-status { font-size: 12px; color: #888; }
+  #lang-toggle { display: flex; gap: 2px; background: #1a1a1a; border-radius: 4px; padding: 2px; }
+  .lang-btn { padding: 4px 12px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: 600; background: transparent; color: #888; }
+  .lang-btn.active { background: #0e639c; color: #fff; }
+  .lang-btn:hover:not(.active) { background: #333; color: #ccc; }
+  #tl-warning { font-size: 11px; color: #c8a838; background: #2a2500; padding: 3px 10px; border-radius: 3px; display: none; }
 
   /* Layout */
   #main { display: flex; flex: 1; overflow: hidden; }
@@ -53,8 +58,13 @@
 <div id="header">
   <h1>Ren'Py Dispatcher Editor</h1>
   <span id="project-path">loading...</span>
+  <div id="lang-toggle">
+    <button class="lang-btn active" data-lang="en">EN</button>
+    <button class="lang-btn" data-lang="cz">CZ</button>
+  </div>
   <button id="save-btn" disabled>Save</button>
   <span id="save-status"></span>
+  <span id="tl-warning">⚠ tl file missing — run Generate Translations in Ren'Py Launcher</span>
 </div>
 
 <div id="main">
@@ -85,6 +95,7 @@
 let editor = null;
 let currentLocation = null;
 let currentState = null;
+let currentLang = 'en';
 let config = null;
 let gridData = {};
 let isDirty = false;
@@ -264,13 +275,13 @@ function renderGrid() {
 }
 
 async function openLabel(location, state) {
-  // Save current file if dirty before switching
-  if (isDirty && currentLocation && currentLocation !== location) {
+  // Save current file if dirty before switching location or language
+  if (isDirty && currentLocation) {
     await saveFile(currentLocation, false);
   }
 
-  // Auto-create stub if label is missing
-  if ((gridData[location]?.[state] || 'missing') === 'missing') {
+  // Auto-create stub if label is missing (only for EN source)
+  if (currentLang === 'en' && (gridData[location]?.[state] || 'missing') === 'missing') {
     await fetch(`/api/stub/${location}/${state}`, { method: 'POST' });
     await refreshGrid();
   }
@@ -286,21 +297,37 @@ async function openLabel(location, state) {
   document.getElementById('editor-label').textContent = labelName;
   document.getElementById('editor-label').style.display = 'inline';
 
-  // Load file if it's a different location than current editor
-  const fileRes = await fetch(`/api/file/${location}`).then(r => r.json());
+  const isCz = currentLang === 'cz';
+  const fileRes = await fetch(isCz ? `/api/tl-file/${location}` : `/api/file/${location}`)
+    .then(r => r.json());
+
   document.getElementById('editor-file').textContent = fileRes.path;
+
+  const tlWarning = document.getElementById('tl-warning');
+  if (isCz && fileRes.content === null) {
+    tlWarning.style.display = 'inline';
+    editor.setModel(monaco.editor.createModel(
+      `# tl file not found: ${fileRes.path}\n# Run Generate Translations in Ren'Py Launcher first.\n`,
+      'renpy'
+    ));
+    document.getElementById('save-btn').disabled = true;
+  } else {
+    tlWarning.style.display = 'none';
+    const model = monaco.editor.createModel(fileRes.content || '', 'renpy');
+    editor.setModel(model);
+    document.getElementById('save-btn').disabled = false;
+  }
 
   document.getElementById('no-file').style.display = 'none';
   document.getElementById('monaco').style.display = 'block';
-
-  const model = monaco.editor.createModel(fileRes.content, 'renpy');
-  editor.setModel(model);
   isDirty = false;
-  document.getElementById('save-btn').disabled = false;
   document.getElementById('save-status').textContent = '';
 
   // Scroll to label
-  const lineRes = await fetch(`/api/label-line/${location}/${state}`).then(r => r.json());
+  const lineEndpoint = isCz
+    ? `/api/tl-label-line/${location}/${state}`
+    : `/api/label-line/${location}/${state}`;
+  const lineRes = await fetch(lineEndpoint).then(r => r.json());
   if (lineRes.line > 0) {
     editor.revealLineInCenter(lineRes.line);
     editor.setPosition({ lineNumber: lineRes.line, column: 1 });
@@ -310,7 +337,8 @@ async function openLabel(location, state) {
 
 async function saveFile(location, updateStatus = true) {
   const content = editor.getValue();
-  await fetch(`/api/file/${location}`, {
+  const endpoint = currentLang === 'cz' ? `/api/tl-file/${location}` : `/api/file/${location}`;
+  await fetch(endpoint, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
@@ -326,6 +354,18 @@ async function saveFile(location, updateStatus = true) {
 
 document.getElementById('save-btn').addEventListener('click', () => {
   if (currentLocation) saveFile(currentLocation);
+});
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const lang = btn.dataset.lang;
+    if (lang === currentLang) return;
+    currentLang = lang;
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+    if (currentLocation && currentState) {
+      await openLabel(currentLocation, currentState);
+    }
+  });
 });
 
 // Ctrl+S

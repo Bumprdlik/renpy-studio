@@ -59,6 +59,11 @@ function buildLabelName(location, state) {
         .replace('{state}', state);
 }
 
+function resolveTlFilePath(location) {
+    const tlDir = config.tlDir || 'tl/czech';
+    return path.join(gameDir, tlDir, config.filePattern.replace('{location}', location));
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 const app = express();
@@ -94,6 +99,30 @@ app.put('/api/file/:location', (req, res) => {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, req.body.content, 'utf-8');
     res.json({ ok: true });
+});
+
+app.get('/api/tl-file/:location', (req, res) => {
+    const filePath = resolveTlFilePath(req.params.location);
+    if (!fs.existsSync(filePath)) return res.json({ content: null, path: filePath });
+    res.json({ content: fs.readFileSync(filePath, 'utf-8'), path: filePath });
+});
+
+app.put('/api/tl-file/:location', (req, res) => {
+    const filePath = resolveTlFilePath(req.params.location);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, req.body.content, 'utf-8');
+    res.json({ ok: true });
+});
+
+app.get('/api/tl-label-line/:location/:state', (req, res) => {
+    const { location, state } = req.params;
+    const filePath = resolveTlFilePath(location);
+    if (!fs.existsSync(filePath)) return res.json({ line: -1 });
+
+    const labelName = buildLabelName(location, state);
+    const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+    const idx = lines.findIndex(l => l.trim().startsWith(`translate czech ${labelName}_`));
+    res.json({ line: idx + 1 });
 });
 
 app.post('/api/stub/:location/:state', (req, res) => {
