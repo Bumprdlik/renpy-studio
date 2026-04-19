@@ -280,8 +280,8 @@ async function openLabel(location, state) {
     await saveFile(currentLocation, false);
   }
 
-  // Auto-create stub if label is missing (only for EN source)
-  if (currentLang === 'en' && (gridData[location]?.[state] || 'missing') === 'missing') {
+  // Auto-create stub in EN source file regardless of active language
+  if ((gridData[location]?.[state] || 'missing') === 'missing') {
     await fetch(`/api/stub/${location}/${state}`, { method: 'POST' });
     await refreshGrid();
   }
