@@ -291,7 +291,6 @@ function renderGrid() {
       const cell = document.createElement('div');
       cell.className = `cell ${status}`;
       cell.textContent = status === 'written' ? '✓' : status === 'stub' ? '~' : '✗';
-      cell.title = `alfred_${loc}_${state} — ${status}`;
       if (loc === currentLocation && state === currentState) cell.classList.add('active');
       cell.addEventListener('click', () => openLabel(loc, state));
       attachHover(cell, loc, state);
