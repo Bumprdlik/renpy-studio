@@ -248,6 +248,17 @@ async function init() {
   config = cfgRes.config;
   document.getElementById('project-path').textContent = cfgRes.projectPath;
   await refreshGrid();
+
+  const evtSource = new EventSource('/api/watch');
+  evtSource.onmessage = async e => {
+    const { location } = JSON.parse(e.data);
+    invalidateHoverCache(location);
+    await refreshGrid();
+    // If currently editing the changed file, reload it silently (only if not dirty)
+    if (!isDirty && currentLocation === location && currentState) {
+      await openLabel(currentLocation, currentState);
+    }
+  };
 }
 
 async function refreshGrid() {

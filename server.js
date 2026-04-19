@@ -405,10 +405,49 @@ app.post('/api/generate-tl/:location', async (req, res) => {
     }
 });
 
+// ── File watch + SSE ─────────────────────────────────────────────────────────
+
+const sseClients = new Set();
+
+app.get('/api/watch', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    sseClients.add(res);
+    req.on('close', () => sseClients.delete(res));
+});
+
+function notifyClients(location) {
+    const payload = `data: ${JSON.stringify({ location })}\n\n`;
+    for (const client of sseClients) client.write(payload);
+}
+
+function watchSourceFiles() {
+    const watchedDirs = new Set();
+    for (const loc of config.locations) {
+        const filePath = resolveFilePath(loc);
+        const dir = path.dirname(filePath);
+        if (watchedDirs.has(dir)) continue;
+        watchedDirs.add(dir);
+
+        if (!fs.existsSync(dir)) continue;
+        fs.watch(dir, (event, filename) => {
+            if (!filename || !filename.endsWith('.rpy')) return;
+            const changedLoc = config.locations.find(l =>
+                resolveFilePath(l) === path.join(dir, filename)
+            );
+            if (changedLoc) notifyClients(changedLoc);
+        });
+    }
+    console.log(`Watching ${watchedDirs.size} director${watchedDirs.size === 1 ? 'y' : 'ies'} for changes.`);
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 const PORT = config.port || 3000;
 app.listen(PORT, () => {
     console.log(`\nDispatcher Editor → http://localhost:${PORT}`);
     console.log(`Project: ${projectPath}\n`);
+    watchSourceFiles();
 });
