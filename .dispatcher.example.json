@@ -1,0 +1,8 @@
+{
+  "gameDir": "game",
+  "labelPattern": "alfred_{location}_{state}",
+  "filePattern": "alfred/alfred_{location}.rpy",
+  "locations": ["bedroom", "bathroom", "dining_room"],
+  "states": ["naked", "towel", "negligee", "underwear", "casual"],
+  "port": 3000
+}
