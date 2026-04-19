@@ -8,7 +8,7 @@
   body { background: #1e1e1e; color: #ccc; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; }
 
   /* Header */
-  #header { background: #252526; padding: 10px 16px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid #333; }
+  #header { background: #252526; padding: 10px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #333; flex-wrap: wrap; }
   #header h1 { font-size: 15px; font-weight: 600; color: #eee; }
   #project-path { font-size: 11px; color: #666; }
   #save-btn { margin-left: auto; padding: 6px 18px; background: #0e639c; color: #fff; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; }
@@ -23,16 +23,35 @@
   #generate-btn { padding: 5px 14px; background: #2d6e2d; color: #aee8ae; border: 1px solid #3a8a3a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
   #generate-btn:hover { background: #3a8a3a; }
   #generate-btn:disabled { background: #333; color: #666; border-color: #444; cursor: default; }
-  #api-key-input { padding: 4px 8px; background: #1a1a1a; color: #ccc; border: 1px solid #444; border-radius: 3px; font-size: 12px; width: 240px; display: none; }
+  #api-key-input { padding: 4px 8px; background: #1a1a1a; color: #ccc; border: 1px solid #444; border-radius: 3px; font-size: 12px; width: 220px; display: none; }
   #api-key-input::placeholder { color: #555; }
 
   /* Layout */
   #main { display: flex; flex: 1; overflow: hidden; }
 
   /* Grid panel */
-  #grid-panel { width: 340px; min-width: 280px; background: #252526; border-right: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; }
-  #grid-panel h2 { padding: 10px 14px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #888; border-bottom: 1px solid #333; }
-  #grid-scroll { overflow-y: auto; flex: 1; padding: 10px; }
+  #grid-panel { width: 360px; min-width: 280px; background: #252526; border-right: 1px solid #333; display: flex; flex-direction: column; overflow: hidden; }
+  #grid-panel-header { padding: 8px 14px 6px; border-bottom: 1px solid #333; }
+  #grid-panel-header h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 6px; }
+  #progress-wrap { display: flex; align-items: center; gap: 8px; }
+  #progress-track { flex: 1; height: 5px; background: #333; border-radius: 3px; overflow: hidden; }
+  #progress-fill { height: 100%; background: #2d6e2d; border-radius: 3px; transition: width 0.3s; }
+  #progress-label { font-size: 11px; color: #888; white-space: nowrap; }
+
+  /* Search */
+  #search-wrap { padding: 6px 10px; border-bottom: 1px solid #2a2a2a; position: relative; }
+  #search-input { width: 100%; padding: 5px 8px; background: #1a1a1a; color: #ccc; border: 1px solid #3a3a3a; border-radius: 3px; font-size: 12px; outline: none; }
+  #search-input:focus { border-color: #0e639c; }
+  #search-input::placeholder { color: #555; }
+  #search-results { position: absolute; left: 10px; right: 10px; top: 100%; background: #252526; border: 1px solid #444; border-radius: 3px; z-index: 200; max-height: 260px; overflow-y: auto; display: none; }
+  .search-item { padding: 6px 10px; cursor: pointer; border-bottom: 1px solid #2a2a2a; }
+  .search-item:hover { background: #2d2d2d; }
+  .search-item-label { font-size: 11px; color: #569cd6; margin-bottom: 2px; }
+  .search-item-text { font-size: 11px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .search-item-text em { color: #ffe08a; font-style: normal; }
+  #search-count { font-size: 10px; color: #666; padding: 4px 10px; text-align: center; }
+
+  #grid-scroll { overflow-y: auto; flex: 1; padding: 8px; outline: none; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; }
   th { padding: 6px 8px; text-align: left; color: #888; font-weight: 500; border-bottom: 1px solid #333; }
   th.state-col { color: #aaa; }
@@ -40,6 +59,7 @@
   .cell { padding: 5px 8px; border-radius: 3px; cursor: pointer; text-align: center; font-size: 11px; font-weight: 500; border: 1px solid transparent; transition: filter 0.1s; white-space: nowrap; }
   .cell:hover { filter: brightness(1.2); }
   .cell.active { border-color: #fff !important; }
+  .cell.kbd-focus { outline: 2px solid #fff; outline-offset: 1px; }
   .cell.written  { background: #1a4a1a; color: #6dbf6d; border-color: #2d6e2d; }
   .cell.stub     { background: #4a3a00; color: #c8a838; border-color: #6e5500; }
   .cell.missing  { background: #4a1a1a; color: #c86868; border-color: #6e2d2d; }
@@ -52,16 +72,29 @@
   .tip-who-n { color: #888; font-style: italic; }
   .tip-empty { color: #555; font-style: italic; }
 
-  /* Legend */
-  #legend { padding: 10px 14px; border-top: 1px solid #333; display: flex; gap: 12px; font-size: 11px; }
+  /* Legend + stats */
+  #legend { padding: 8px 14px 4px; border-top: 1px solid #333; display: flex; gap: 12px; font-size: 11px; }
   .leg { display: flex; align-items: center; gap: 5px; }
   .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
+  #stats-bar { padding: 4px 14px 8px; font-size: 11px; color: #666; display: flex; gap: 12px; }
+  .stat-char { color: #888; }
+  .stat-char span { font-weight: 600; }
+  .stat-a { color: #9cdcfe; }
+  .stat-l { color: #ce9178; }
+  .stat-n { color: #888; }
 
   /* Editor panel */
   #editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
   #editor-header { padding: 8px 14px; background: #2d2d2d; border-bottom: 1px solid #333; font-size: 12px; color: #888; display: flex; align-items: center; gap: 10px; }
   #editor-header span { color: #ccc; }
   #editor-header .label-badge { background: #0e639c; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; }
+  #split-btn { margin-left: auto; padding: 3px 10px; background: transparent; color: #888; border: 1px solid #444; border-radius: 3px; cursor: pointer; font-size: 11px; display: none; }
+  #split-btn:hover { background: #333; color: #ccc; }
+  #split-btn.active { background: #3a3a6a; color: #aaaaff; border-color: #5555aa; }
+  #editors-wrap { flex: 1; display: flex; overflow: hidden; }
+  #en-panel { flex: 0 0 50%; border-right: 1px solid #333; display: none; flex-direction: column; overflow: hidden; }
+  #en-panel-header { padding: 5px 10px; background: #252526; border-bottom: 1px solid #333; font-size: 11px; color: #666; }
+  #en-monaco { flex: 1; }
   #monaco { flex: 1; }
   #no-file { flex: 1; display: flex; align-items: center; justify-content: center; color: #555; font-size: 14px; }
 </style>
@@ -85,8 +118,18 @@
 
 <div id="main">
   <div id="grid-panel">
-    <h2>Label Coverage</h2>
-    <div id="grid-scroll">
+    <div id="grid-panel-header">
+      <h2>Label Coverage</h2>
+      <div id="progress-wrap">
+        <div id="progress-track"><div id="progress-fill" style="width:0%"></div></div>
+        <span id="progress-label">—</span>
+      </div>
+    </div>
+    <div id="search-wrap">
+      <input id="search-input" placeholder="Search dialogue… (min 2 chars)" autocomplete="off" />
+      <div id="search-results"></div>
+    </div>
+    <div id="grid-scroll" tabindex="0">
       <table id="grid-table"><tbody></tbody></table>
     </div>
     <div id="legend">
@@ -94,31 +137,42 @@
       <div class="leg"><div class="leg-dot" style="background:#4a3a00;border:1px solid #6e5500"></div> stub</div>
       <div class="leg"><div class="leg-dot" style="background:#4a1a1a;border:1px solid #6e2d2d"></div> missing</div>
     </div>
+    <div id="stats-bar"></div>
   </div>
 
   <div id="editor-panel">
     <div id="editor-header">
       <span id="editor-file">—</span>
       <span id="editor-label" class="label-badge" style="display:none"></span>
+      <button id="split-btn">⧉ Split EN</button>
     </div>
-    <div id="no-file">← Select a cell to edit</div>
-    <div id="monaco" style="display:none"></div>
+    <div id="editors-wrap">
+      <div id="en-panel">
+        <div id="en-panel-header">EN source (read-only)</div>
+        <div id="en-monaco"></div>
+      </div>
+      <div id="no-file">← Select a cell to edit</div>
+      <div id="monaco" style="display:none"></div>
+    </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
 <script>
 let editor = null;
+let enEditor = null;
 let currentLocation = null;
 let currentState = null;
 let currentLang = 'en';
 let config = null;
 let gridData = {};
 let isDirty = false;
+let splitActive = false;
+let kbdLocIdx = 0;
+let kbdStateIdx = 0;
 
 require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
 require(['vs/editor/editor.main'], () => {
-  // Register a basic renpy language for syntax colouring
   monaco.languages.register({ id: 'renpy' });
   monaco.languages.setMonarchTokensProvider('renpy', {
     tokenizer: {
@@ -133,8 +187,7 @@ require(['vs/editor/editor.main'], () => {
     }
   });
   monaco.editor.defineTheme('renpy-dark', {
-    base: 'vs-dark',
-    inherit: true,
+    base: 'vs-dark', inherit: true,
     rules: [
       { token: 'keyword', foreground: '569cd6' },
       { token: 'string', foreground: 'ce9178' },
@@ -155,81 +208,38 @@ require(['vs/editor/editor.main'], () => {
       const S = monaco.languages.CompletionItemKind.Snippet;
       const I = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
       return { suggestions: [
-        {
-          label: 'alf', kind: S, insertTextRules: I, range,
-          detail: 'Alfred dialogue',
-          insertText: 'a "${1:...}"',
-        },
-        {
-          label: 'lar', kind: S, insertTextRules: I, range,
-          detail: 'Lara dialogue / thought',
-          insertText: 'l "${1:...}"',
-        },
-        {
-          label: 'show-alf', kind: S, insertTextRules: I, range,
-          detail: 'show alfred neutral',
-          insertText: 'show alfred ${1|neutral,surprised,flustered|} at ${2|right,left,center|} with dissolve',
-        },
-        {
-          label: 'hide-alf', kind: S, insertTextRules: I, range,
-          detail: 'hide alfred',
-          insertText: 'hide alfred with dissolve',
-        },
-        {
-          label: 'show-lara', kind: S, insertTextRules: I, range,
-          detail: 'show lara (current outfit)',
-          insertText: 'show expression "lara neutral_" + clothes as lara at ${1|center,left,right|}',
-        },
-        {
-          label: 'clothes-set', kind: S, insertTextRules: I, range,
-          detail: 'Change outfit + show sprite',
-          insertText: [
-            '\\$ clothes = "${1|naked,towel,negligee,underwear,casual|}"',
-            'show lara neutral_${1} at ${2|center,left,right|} with dissolve',
-          ].join('\n'),
-        },
-        {
-          label: 'menu2', kind: S, insertTextRules: I, range,
-          detail: 'Menu with 2 choices',
-          insertText: [
-            'menu:',
-            '    "${1:Choice A}":',
-            '        ${2:pass}',
-            '    "${3:Choice B}":',
-            '        ${4:pass}',
-          ].join('\n'),
-        },
-        {
-          label: 'menu3', kind: S, insertTextRules: I, range,
-          detail: 'Menu with 3 choices',
-          insertText: [
-            'menu:',
-            '    "${1:Choice A}":',
-            '        ${2:pass}',
-            '    "${3:Choice B}":',
-            '        ${4:pass}',
-            '    "${5:Choice C}":',
-            '        ${6:pass}',
-          ].join('\n'),
-        },
-        {
-          label: 'scene-bg', kind: S, insertTextRules: I, range,
-          detail: 'scene bg <location>',
-          insertText: 'scene bg ${1:location} with dissolve',
-        },
+        { label: 'alf', kind: S, insertTextRules: I, range, detail: 'Alfred dialogue', insertText: 'a "${1:...}"' },
+        { label: 'lar', kind: S, insertTextRules: I, range, detail: 'Lara dialogue / thought', insertText: 'l "${1:...}"' },
+        { label: 'show-alf', kind: S, insertTextRules: I, range, detail: 'show alfred neutral',
+          insertText: 'show alfred ${1|neutral,surprised,flustered|} at ${2|right,left,center|} with dissolve' },
+        { label: 'hide-alf', kind: S, insertTextRules: I, range, detail: 'hide alfred', insertText: 'hide alfred with dissolve' },
+        { label: 'show-lara', kind: S, insertTextRules: I, range, detail: 'show lara (current outfit)',
+          insertText: 'show expression "lara neutral_" + clothes as lara at ${1|center,left,right|}' },
+        { label: 'clothes-set', kind: S, insertTextRules: I, range, detail: 'Change outfit + show sprite',
+          insertText: ['\\$ clothes = "${1|naked,towel,negligee,underwear,casual|}"',
+            'show lara neutral_${1} at ${2|center,left,right|} with dissolve'].join('\n') },
+        { label: 'menu2', kind: S, insertTextRules: I, range, detail: 'Menu with 2 choices',
+          insertText: ['menu:', '    "${1:Choice A}":','        ${2:pass}','    "${3:Choice B}":','        ${4:pass}'].join('\n') },
+        { label: 'menu3', kind: S, insertTextRules: I, range, detail: 'Menu with 3 choices',
+          insertText: ['menu:', '    "${1:Choice A}":','        ${2:pass}','    "${3:Choice B}":',
+            '        ${4:pass}','    "${5:Choice C}":','        ${6:pass}'].join('\n') },
+        { label: 'scene-bg', kind: S, insertTextRules: I, range, detail: 'scene bg <location>',
+          insertText: 'scene bg ${1:location} with dissolve' },
       ]};
     }
   });
 
   editor = monaco.editor.create(document.getElementById('monaco'), {
-    language: 'renpy',
-    theme: 'renpy-dark',
-    fontSize: 13,
-    lineNumbers: 'on',
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    wordWrap: 'off',
-    automaticLayout: true,
+    language: 'renpy', theme: 'renpy-dark', fontSize: 13,
+    lineNumbers: 'on', minimap: { enabled: false },
+    scrollBeyondLastLine: false, wordWrap: 'off', automaticLayout: true,
+  });
+
+  enEditor = monaco.editor.create(document.getElementById('en-monaco'), {
+    language: 'renpy', theme: 'renpy-dark', fontSize: 13,
+    lineNumbers: 'on', minimap: { enabled: false },
+    scrollBeyondLastLine: false, wordWrap: 'off', automaticLayout: true,
+    readOnly: true,
   });
 
   editor.onDidChangeModelContent(() => {
@@ -248,13 +258,14 @@ async function init() {
   config = cfgRes.config;
   document.getElementById('project-path').textContent = cfgRes.projectPath;
   await refreshGrid();
+  loadStats();
 
   const evtSource = new EventSource('/api/watch');
   evtSource.onmessage = async e => {
     const { location } = JSON.parse(e.data);
     invalidateHoverCache(location);
     await refreshGrid();
-    // If currently editing the changed file, reload it silently (only if not dirty)
+    loadStats();
     if (!isDirty && currentLocation === location && currentState) {
       await openLabel(currentLocation, currentState);
     }
@@ -264,50 +275,70 @@ async function init() {
 async function refreshGrid() {
   gridData = await fetch('/api/status').then(r => r.json());
   renderGrid();
+  renderProgress();
+}
+
+function renderProgress() {
+  if (!config) return;
+  let total = 0, written = 0;
+  for (const loc of config.locations)
+    for (const state of config.states) {
+      total++;
+      if ((gridData[loc]?.[state]) === 'written') written++;
+    }
+  const pct = total ? Math.round(written / total * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `${written}/${total} written`;
+}
+
+async function loadStats() {
+  const s = await fetch('/api/stats').then(r => r.json());
+  const bar = document.getElementById('stats-bar');
+  const chars = Object.entries(s.byChar).sort((a,b) => b[1]-a[1]);
+  bar.innerHTML = chars.map(([who, n]) => {
+    const cls = who === 'a' ? 'stat-a' : who === 'l' ? 'stat-l' : 'stat-n';
+    return `<span class="${cls}"><b>${who}</b>: ${n}</span>`;
+  }).join(' ');
 }
 
 function renderGrid() {
   const tbody = document.querySelector('#grid-table tbody');
   tbody.innerHTML = '';
 
-  // Header row
   const headerRow = document.createElement('tr');
   headerRow.innerHTML = '<th class="state-col">state \\ location</th>' +
     config.locations.map(loc => `<th>${loc}</th>`).join('');
   tbody.appendChild(headerRow);
 
-  for (const state of config.states) {
+  config.states.forEach((state, si) => {
     const tr = document.createElement('tr');
     const tdState = document.createElement('td');
-    tdState.style.color = '#aaa';
-    tdState.style.fontWeight = '500';
-    tdState.style.padding = '4px 8px';
+    tdState.style.cssText = 'color:#aaa;font-weight:500;padding:4px 8px';
     tdState.textContent = state;
     tr.appendChild(tdState);
 
-    for (const loc of config.locations) {
+    config.locations.forEach((loc, li) => {
       const status = gridData[loc]?.[state] || 'missing';
       const td = document.createElement('td');
       const cell = document.createElement('div');
       cell.className = `cell ${status}`;
       cell.textContent = status === 'written' ? '✓' : status === 'stub' ? '~' : '✗';
+      cell.dataset.li = li;
+      cell.dataset.si = si;
       if (loc === currentLocation && state === currentState) cell.classList.add('active');
-      cell.addEventListener('click', () => openLabel(loc, state));
+      if (li === kbdLocIdx && si === kbdStateIdx) cell.classList.add('kbd-focus');
+      cell.addEventListener('click', () => { kbdLocIdx = li; kbdStateIdx = si; openLabel(loc, state); });
       attachHover(cell, loc, state);
       td.appendChild(cell);
       tr.appendChild(td);
-    }
+    });
     tbody.appendChild(tr);
-  }
+  });
 }
 
 async function openLabel(location, state) {
-  // Save current file if dirty before switching location or language
-  if (isDirty && currentLocation) {
-    await saveFile(currentLocation, false);
-  }
+  if (isDirty && currentLocation) await saveFile(currentLocation, false);
 
-  // Auto-create stub in EN source file regardless of active language
   if ((gridData[location]?.[state] || 'missing') === 'missing') {
     await fetch(`/api/stub/${location}/${state}`, { method: 'POST' });
     await refreshGrid();
@@ -317,23 +348,18 @@ async function openLabel(location, state) {
   currentState = state;
   renderGrid();
 
-  const labelName = config.labelPattern
-    .replace('{location}', location)
-    .replace('{state}', state);
-
+  const labelName = config.labelPattern.replace('{location}', location).replace('{state}', state);
   document.getElementById('editor-label').textContent = labelName;
   document.getElementById('editor-label').style.display = 'inline';
 
   const isCz = currentLang === 'cz';
-  const fileRes = await fetch(isCz ? `/api/tl-file/${location}` : `/api/file/${location}`)
-    .then(r => r.json());
-
+  const fileRes = await fetch(isCz ? `/api/tl-file/${location}` : `/api/file/${location}`).then(r => r.json());
   document.getElementById('editor-file').textContent = fileRes.path;
 
   const tlWarning = document.getElementById('tl-warning');
   if (isCz && fileRes.content === null) {
     const status = gridData[location]?.[state] || 'missing';
-    const hint = status === 'stub' || status === 'missing'
+    const hint = (status === 'stub' || status === 'missing')
       ? `# No tl file yet — write EN dialogue first, then run Generate Translations in Ren'Py Launcher.\n# (Labels with only # TODO have nothing to translate.)\n`
       : `# tl file not found: ${fileRes.path}\n# Run Generate Translations in Ren'Py Launcher.\n`;
     tlWarning.style.display = 'inline';
@@ -341,8 +367,7 @@ async function openLabel(location, state) {
     document.getElementById('save-btn').disabled = true;
   } else {
     tlWarning.style.display = 'none';
-    const model = monaco.editor.createModel(fileRes.content || '', 'renpy');
-    editor.setModel(model);
+    editor.setModel(monaco.editor.createModel(fileRes.content || '', 'renpy'));
     document.getElementById('save-btn').disabled = false;
   }
 
@@ -351,11 +376,10 @@ async function openLabel(location, state) {
   isDirty = false;
   document.getElementById('save-status').textContent = '';
   updateGenerateBtn();
+  updateSplitBtn();
+  if (splitActive) await loadEnPanel(location);
 
-  // Scroll to label
-  const lineEndpoint = isCz
-    ? `/api/tl-label-line/${location}/${state}`
-    : `/api/label-line/${location}/${state}`;
+  const lineEndpoint = isCz ? `/api/tl-label-line/${location}/${state}` : `/api/label-line/${location}/${state}`;
   const lineRes = await fetch(lineEndpoint).then(r => r.json());
   if (lineRes.line > 0) {
     editor.revealLineInCenter(lineRes.line);
@@ -364,12 +388,21 @@ async function openLabel(location, state) {
   }
 }
 
+async function loadEnPanel(location) {
+  const fileRes = await fetch(`/api/file/${location}`).then(r => r.json());
+  document.getElementById('en-panel-header').textContent = fileRes.path;
+  enEditor.setModel(monaco.editor.createModel(fileRes.content || '', 'renpy'));
+  if (currentState) {
+    const lineRes = await fetch(`/api/label-line/${location}/${currentState}`).then(r => r.json());
+    if (lineRes.line > 0) enEditor.revealLineInCenter(lineRes.line);
+  }
+}
+
 async function saveFile(location, updateStatus = true) {
   const content = editor.getValue();
   const endpoint = currentLang === 'cz' ? `/api/tl-file/${location}` : `/api/file/${location}`;
   await fetch(endpoint, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
   });
   isDirty = false;
@@ -380,6 +413,7 @@ async function saveFile(location, updateStatus = true) {
     setTimeout(() => document.getElementById('save-status').textContent = '', 2000);
   }
   await refreshGrid();
+  loadStats();
 }
 
 document.getElementById('save-btn').addEventListener('click', () => {
@@ -392,15 +426,67 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
     if (lang === currentLang) return;
     currentLang = lang;
     document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
-    if (currentLocation && currentState) {
-      await openLabel(currentLocation, currentState);
-    } else {
-      updateGenerateBtn();
-    }
+    if (currentLocation && currentState) await openLabel(currentLocation, currentState);
+    else { updateGenerateBtn(); updateSplitBtn(); }
   });
 });
 
-// ── Hover preview ────────────────────────────────────────────────────────────
+// ── Split view ────────────────────────────────────────────────────────────────
+function updateSplitBtn() {
+  const btn = document.getElementById('split-btn');
+  btn.style.display = (currentLang === 'cz' && !!currentLocation) ? 'inline-block' : 'none';
+  btn.classList.toggle('active', splitActive);
+}
+
+document.getElementById('split-btn').addEventListener('click', async () => {
+  splitActive = !splitActive;
+  const enPanel = document.getElementById('en-panel');
+  enPanel.style.display = splitActive ? 'flex' : 'none';
+  document.getElementById('split-btn').classList.toggle('active', splitActive);
+  if (splitActive && currentLocation) await loadEnPanel(currentLocation);
+});
+
+// ── Generate CZ ───────────────────────────────────────────────────────────────
+function updateGenerateBtn() {
+  const btn = document.getElementById('generate-btn');
+  const keyInput = document.getElementById('api-key-input');
+  const show = currentLang === 'cz' && !!currentLocation;
+  btn.style.display = show ? 'inline-block' : 'none';
+  keyInput.style.display = show ? 'inline-block' : 'none';
+}
+
+document.getElementById('generate-btn').addEventListener('click', async () => {
+  if (!currentLocation) return;
+  const btn = document.getElementById('generate-btn');
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  document.getElementById('save-status').textContent = '⟳ translating...';
+  try {
+    const res = await fetch(`/api/generate-tl/${currentLocation}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: apiKey || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Server error');
+    if (data.empty) {
+      document.getElementById('save-status').textContent = '⚠ no dialogue found in source';
+    } else {
+      document.getElementById('tl-warning').style.display = 'none';
+      editor.setModel(monaco.editor.createModel(data.content, 'renpy'));
+      document.getElementById('save-btn').disabled = false;
+      isDirty = true;
+      document.getElementById('save-status').textContent = '● review & save';
+    }
+  } catch (e) {
+    document.getElementById('save-status').textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate CZ';
+  }
+});
+
+// ── Hover preview ─────────────────────────────────────────────────────────────
 const tooltip = document.getElementById('hover-tooltip');
 let hoverTimer = null;
 let hoverCache = {};
@@ -445,65 +531,97 @@ function attachHover(cell, loc, state) {
       tooltip.style.top = top + 'px';
     }
   });
-  cell.addEventListener('mouseleave', () => {
-    clearTimeout(hoverTimer);
-    tooltip.style.display = 'none';
-  });
+  cell.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); tooltip.style.display = 'none'; });
 }
 
-// Invalidate cache for a location after save
 function invalidateHoverCache(location) {
   Object.keys(hoverCache).filter(k => k.startsWith(location + '/')).forEach(k => delete hoverCache[k]);
 }
 
-// Ctrl+S
+// ── Keyboard navigation ───────────────────────────────────────────────────────
+document.getElementById('grid-scroll').addEventListener('keydown', e => {
+  if (!config) return;
+  const maxLi = config.locations.length - 1;
+  const maxSi = config.states.length - 1;
+  let moved = false;
+
+  if (e.key === 'ArrowRight')  { kbdLocIdx   = Math.min(kbdLocIdx + 1, maxLi); moved = true; }
+  if (e.key === 'ArrowLeft')   { kbdLocIdx   = Math.max(kbdLocIdx - 1, 0);     moved = true; }
+  if (e.key === 'ArrowDown')   { kbdStateIdx = Math.min(kbdStateIdx + 1, maxSi); moved = true; }
+  if (e.key === 'ArrowUp')     { kbdStateIdx = Math.max(kbdStateIdx - 1, 0);   moved = true; }
+  if (e.key === 'Enter') {
+    openLabel(config.locations[kbdLocIdx], config.states[kbdStateIdx]);
+    moved = true;
+  }
+  if (moved) { e.preventDefault(); renderGrid(); scrollKbdCellIntoView(); }
+});
+
+function scrollKbdCellIntoView() {
+  const cell = document.querySelector('.cell.kbd-focus');
+  if (cell) cell.scrollIntoView({ block: 'nearest' });
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+let searchTimer = null;
+const searchInput = document.getElementById('search-input');
+const searchResults = document.getElementById('search-results');
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (q.length < 2) { searchResults.style.display = 'none'; return; }
+  searchTimer = setTimeout(() => runSearch(q), 300);
+});
+
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { searchResults.style.display = 'none'; searchInput.value = ''; }
+});
+
+document.addEventListener('click', e => {
+  if (!searchInput.contains(e.target) && !searchResults.contains(e.target))
+    searchResults.style.display = 'none';
+});
+
+async function runSearch(q) {
+  const data = await fetch(`/api/search?q=${encodeURIComponent(q)}`).then(r => r.json());
+  if (data.length === 0) {
+    searchResults.innerHTML = '<div id="search-count">No results</div>';
+    searchResults.style.display = 'block';
+    return;
+  }
+  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  searchResults.innerHTML = data.map(item => {
+    const hi = item.text.replace(re, m => `<em>${m}</em>`);
+    const li = config.locations.indexOf(item.location);
+    const si = config.states.indexOf(item.label.split('_').pop());
+    return `<div class="search-item" data-loc="${item.location}" data-state="${item.label}" data-li="${li}" data-si="${si}">
+      <div class="search-item-label">${item.label} :${item.line}</div>
+      <div class="search-item-text">${hi}</div>
+    </div>`;
+  }).join('') + (data.length >= 60 ? '<div id="search-count">Showing first 60 results</div>' : '');
+  searchResults.style.display = 'block';
+
+  searchResults.querySelectorAll('.search-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const loc = el.dataset.loc;
+      const li = parseInt(el.dataset.li);
+      const si = parseInt(el.dataset.si);
+      // resolve state from label name: last segment after location
+      const labelParts = el.dataset.state.split('_');
+      const state = config.states.find(s => el.dataset.state.endsWith('_' + s)) || labelParts[labelParts.length - 1];
+      if (li >= 0) kbdLocIdx = li;
+      if (si >= 0) kbdStateIdx = si;
+      searchResults.style.display = 'none';
+      openLabel(loc, state);
+    });
+  });
+}
+
+// ── Ctrl+S ────────────────────────────────────────────────────────────────────
 window.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault();
     if (currentLocation && isDirty) saveFile(currentLocation);
-  }
-});
-
-function updateGenerateBtn() {
-  const btn = document.getElementById('generate-btn');
-  const keyInput = document.getElementById('api-key-input');
-  const show = currentLang === 'cz' && !!currentLocation;
-  btn.style.display = show ? 'inline-block' : 'none';
-  keyInput.style.display = show ? 'inline-block' : 'none';
-}
-
-document.getElementById('generate-btn').addEventListener('click', async () => {
-  if (!currentLocation) return;
-  const btn = document.getElementById('generate-btn');
-  const apiKey = document.getElementById('api-key-input').value.trim();
-
-  btn.disabled = true;
-  btn.textContent = 'Generating...';
-  document.getElementById('save-status').textContent = '⟳ translating...';
-
-  try {
-    const res = await fetch(`/api/generate-tl/${currentLocation}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: apiKey || undefined }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Server error');
-
-    if (data.empty) {
-      document.getElementById('save-status').textContent = '⚠ no dialogue found in source';
-    } else {
-      document.getElementById('tl-warning').style.display = 'none';
-      editor.setModel(monaco.editor.createModel(data.content, 'renpy'));
-      document.getElementById('save-btn').disabled = false;
-      isDirty = true;
-      document.getElementById('save-status').textContent = '● review & save';
-    }
-  } catch (e) {
-    document.getElementById('save-status').textContent = '✗ ' + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Generate CZ';
   }
 });
 </script>

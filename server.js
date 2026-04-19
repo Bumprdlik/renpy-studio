@@ -405,6 +405,55 @@ app.post('/api/generate-tl/:location', async (req, res) => {
     }
 });
 
+// ── Stats + Search ───────────────────────────────────────────────────────────
+
+app.get('/api/stats', (req, res) => {
+    let total = 0, written = 0, stub = 0, missing = 0;
+    const byChar = {};
+    const charRe = /^\s+(\w+)\s+"/;
+    const characters = config.characters || ['a', 'l', 'narrator'];
+
+    for (const loc of config.locations) {
+        const filePath = resolveFilePath(loc);
+        const content = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
+        for (const state of config.states) {
+            total++;
+            const s = getLabelStatus(content, buildLabelName(loc, state));
+            if (s === 'written') written++;
+            else if (s === 'stub') stub++;
+            else missing++;
+        }
+        content.split('\n').forEach(line => {
+            const m = line.match(charRe);
+            if (m && characters.includes(m[1])) byChar[m[1]] = (byChar[m[1]] || 0) + 1;
+        });
+    }
+    res.json({ total, written, stub, missing, byChar });
+});
+
+app.get('/api/search', (req, res) => {
+    const q = (req.query.q || '').toLowerCase().trim();
+    if (q.length < 2) return res.json([]);
+
+    const results = [];
+    for (const loc of config.locations) {
+        const filePath = resolveFilePath(loc);
+        if (!fs.existsSync(filePath)) continue;
+        const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+        let currentLabel = null;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const lm = line.match(/^label\s+([\w]+)\s*:/);
+            if (lm) { currentLabel = lm[1]; continue; }
+            if (currentLabel && line.toLowerCase().includes(q)) {
+                results.push({ location: loc, label: currentLabel, line: i + 1, text: line.trim() });
+                if (results.length >= 60) return res.json(results);
+            }
+        }
+    }
+    res.json(results);
+});
+
 // ── File watch + SSE ─────────────────────────────────────────────────────────
 
 const sseClients = new Set();
