@@ -117,6 +117,83 @@ require(['vs/editor/editor.main'], () => {
     colors: {}
   });
 
+  monaco.languages.registerCompletionItemProvider('renpy', {
+    triggerCharacters: [],
+    provideCompletionItems: (model, position) => {
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber, endLineNumber: position.lineNumber,
+        startColumn: word.startColumn, endColumn: word.endColumn,
+      };
+      const S = monaco.languages.CompletionItemKind.Snippet;
+      const I = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+      return { suggestions: [
+        {
+          label: 'alf', kind: S, insertTextRules: I, range,
+          detail: 'Alfred dialogue',
+          insertText: 'a "${1:...}"',
+        },
+        {
+          label: 'lar', kind: S, insertTextRules: I, range,
+          detail: 'Lara dialogue / thought',
+          insertText: 'l "${1:...}"',
+        },
+        {
+          label: 'show-alf', kind: S, insertTextRules: I, range,
+          detail: 'show alfred neutral',
+          insertText: 'show alfred ${1|neutral,surprised,flustered|} at ${2|right,left,center|} with dissolve',
+        },
+        {
+          label: 'hide-alf', kind: S, insertTextRules: I, range,
+          detail: 'hide alfred',
+          insertText: 'hide alfred with dissolve',
+        },
+        {
+          label: 'show-lara', kind: S, insertTextRules: I, range,
+          detail: 'show lara (current outfit)',
+          insertText: 'show expression "lara neutral_" + clothes as lara at ${1|center,left,right|}',
+        },
+        {
+          label: 'clothes-set', kind: S, insertTextRules: I, range,
+          detail: 'Change outfit + show sprite',
+          insertText: [
+            '\\$ clothes = "${1|naked,towel,negligee,underwear,casual|}"',
+            'show lara neutral_${1} at ${2|center,left,right|} with dissolve',
+          ].join('\n'),
+        },
+        {
+          label: 'menu2', kind: S, insertTextRules: I, range,
+          detail: 'Menu with 2 choices',
+          insertText: [
+            'menu:',
+            '    "${1:Choice A}":',
+            '        ${2:pass}',
+            '    "${3:Choice B}":',
+            '        ${4:pass}',
+          ].join('\n'),
+        },
+        {
+          label: 'menu3', kind: S, insertTextRules: I, range,
+          detail: 'Menu with 3 choices',
+          insertText: [
+            'menu:',
+            '    "${1:Choice A}":',
+            '        ${2:pass}',
+            '    "${3:Choice B}":',
+            '        ${4:pass}',
+            '    "${5:Choice C}":',
+            '        ${6:pass}',
+          ].join('\n'),
+        },
+        {
+          label: 'scene-bg', kind: S, insertTextRules: I, range,
+          detail: 'scene bg <location>',
+          insertText: 'scene bg ${1:location} with dissolve',
+        },
+      ]};
+    }
+  });
+
   editor = monaco.editor.create(document.getElementById('monaco'), {
     language: 'renpy',
     theme: 'renpy-dark',
@@ -190,6 +267,12 @@ async function openLabel(location, state) {
   // Save current file if dirty before switching
   if (isDirty && currentLocation && currentLocation !== location) {
     await saveFile(currentLocation, false);
+  }
+
+  // Auto-create stub if label is missing
+  if ((gridData[location]?.[state] || 'missing') === 'missing') {
+    await fetch(`/api/stub/${location}/${state}`, { method: 'POST' });
+    await refreshGrid();
   }
 
   currentLocation = location;

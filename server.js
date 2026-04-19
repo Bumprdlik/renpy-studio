@@ -96,6 +96,22 @@ app.put('/api/file/:location', (req, res) => {
     res.json({ ok: true });
 });
 
+app.post('/api/stub/:location/:state', (req, res) => {
+    const { location, state } = req.params;
+    const filePath = resolveFilePath(location);
+    const labelName = buildLabelName(location, state);
+
+    const existing = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
+    if (existing.split('\n').some(l => l.trim() === `label ${labelName}:`)) {
+        return res.json({ ok: true, created: false });
+    }
+
+    const stub = `\nlabel ${labelName}:\n    # TODO\n    return\n`;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.appendFileSync(filePath, stub, 'utf-8');
+    res.json({ ok: true, created: true });
+});
+
 app.get('/api/label-line/:location/:state', (req, res) => {
     const { location, state } = req.params;
     const filePath = resolveFilePath(location);
