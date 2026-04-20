@@ -35,6 +35,13 @@ A local Node.js tool for editing Ren'Py dispatcher pattern files. It reads/write
 | POST | `/api/stub/:location/:state` | Creates stub label in EN source if missing |
 | GET | `/api/preview/:location/:state` | Returns first 6 dialogue lines `{ who, text }[]` for hover tooltip |
 | POST | `/api/generate-tl/:location` | Translates EN source → tl file via Claude API; returns `{ content }` |
+| POST | `/api/draft-en/:location/:state` | AI-writes EN dialogue for a label; returns `{ content }` (label body only) |
+| POST | `/api/revise-en/:location/:state` | Rewrites existing label body per instruction; body: `{ content, instructions, apiKey? }`; returns `{ content }` |
+| GET | `/api/tl-empty` | Returns empty-string counts per location/state in tl files |
+| GET | `/api/lint` | Returns lint issues per location/state for written labels |
+| GET+PUT | `/api/tl-memory` | Get/set translation memory array `[{ who, en, cz }]` |
+| DELETE | `/api/tl-memory/:idx` | Remove one phrase from translation memory |
+| POST | `/api/tl-memory/learn` | Scan all tl files and extract phrase pairs into memory |
 | GET | `/api/watch` | SSE stream — pushes `{ location }` when source file changes on disk |
 
 ## Label detection (`getLabelStatus`)
@@ -62,6 +69,11 @@ API key resolved in order: `req.body.apiKey` → `ANTHROPIC_API_KEY` env → `co
 - **Search** — debounced 300ms input → `GET /api/search?q=`; results highlight matches with `<em>`; click resolves location/state from label name suffix
 - **Split view** — second read-only Monaco instance (`enEditor`) in `#en-panel`; toggled by `splitActive` flag; visible only in CZ mode with a cell open; `loadEnPanel()` loads EN source and scrolls to label
 - **Character stats** — `loadStats()` fetches `/api/stats`, renders `a/l/narrator` counts in `#stats-bar` below legend
+- **Draft EN** — `✦ Draft EN` button (EN mode, cell open) → `POST /api/draft-en`; result replaces label block via `editor.executeEdits`
+- **Revise EN** — `✎ Revise` button (EN mode, cell open) → opens inline bar with instruction input; `Enter` or Go → `POST /api/revise-en`; replaces label block; bar closes on success
+- **Untranslated badges** — orange number badge on cell (top-right) = empty strings in tl file; `loadTlEmpty()` → `/api/tl-empty`
+- **Lint badges** — red `⚠` badge (top-left) on written cells with issues; `loadLint()` → `/api/lint`
+- **Translation memory** — collapsible panel in grid sidebar; `POST /api/tl-memory/learn` scans tl files; injected into translation prompts
 
 ## File watch
 

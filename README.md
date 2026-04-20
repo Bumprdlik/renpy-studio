@@ -17,6 +17,8 @@ Visual editor for the Ren'Py dispatcher pattern — shows a **location × state*
 - **EN/CZ toggle** — switch between source file and `tl/czech/` translation file for any cell
 - **Split view** — in CZ mode, `⧉ Split EN` button shows the EN source as a read-only reference panel beside the CZ editor
 - **Generate CZ** — one-click Czech translation of the current file via Claude API (requires Anthropic API key)
+- **Draft EN** — AI writes English dialogue for a stub label (Claude Sonnet)
+- **Revise** — rewrite an existing label with a one-line instruction (e.g. "add tension", "shorten", "more formal")
 - Auto-creates stub labels when you click a missing cell
 
 ## Installation
@@ -103,6 +105,8 @@ EN mode: write story  →  CZ mode: Generate All CZ
 1. dispatcher-editor          # start server
 2. Look at grid               # find gaps (✗ missing, ~ stub, orange badge)
 3. Right-click stub → Insert template → write EN dialogue
+   - Or: **✦ Draft EN** → AI writes a full draft → review & edit
+   - Or: write manually, then **✎ Revise** → type instruction → Go (e.g. "add more tension between choices")
 4. Ctrl+S → cell turns ✓
 5. Switch CZ → Generate CZ → review → Ctrl+S
 6. Repeat

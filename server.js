@@ -187,6 +187,12 @@ function saveMemory(memory) {
     fs.writeFileSync(resolveMemoryPath(), JSON.stringify(memory, null, 2), 'utf-8');
 }
 
+// ── Express app ──────────────────────────────────────────────────────────────
+
+const app = express();
+app.use(express.json({ limit: '2mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.get('/api/tl-memory', (req, res) => res.json(loadMemory()));
 
 app.put('/api/tl-memory', (req, res) => {
@@ -354,10 +360,6 @@ function buildTlContent(blocks, menuStrings, dialogueTranslations, menuTranslati
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-
-const app = express();
-app.use(express.json({ limit: '2mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/config', (req, res) => {
     res.json({ config, projectPath });
@@ -576,6 +578,46 @@ Requirements:
 - Close with \`hide alfred with dissolve\` and \`return\`
 - Total 10–18 lines
 - Return ONLY valid Ren'Py code, no markdown fences, no comments`;
+
+        const response = await client.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
+            messages: [{ role: 'user', content: prompt }],
+        });
+
+        res.json({ content: response.content[0].text.trim() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ── AI revise EN dialogue ─────────────────────────────────────────────────────
+
+app.post('/api/revise-en/:location/:state', async (req, res) => {
+    try {
+        const { location, state } = req.params;
+        const { content, instructions } = req.body;
+        const apiKey = req.body.apiKey || process.env.ANTHROPIC_API_KEY || config.anthropicApiKey;
+        if (!apiKey) return res.status(400).json({ error: 'No Anthropic API key.' });
+        if (!content || !instructions) return res.status(400).json({ error: 'content and instructions required.' });
+
+        const labelName = buildLabelName(location, state);
+        const Anthropic = require('@anthropic-ai/sdk');
+        const client = new Anthropic({ apiKey });
+
+        const prompt = `You are editing a Ren'Py visual novel dialogue label.
+
+Label: ${labelName}
+Characters:
+- Alfred (variable: a): formal English butler, polite, slightly stiff, proper British mannerisms
+- Lara (variable: l): first-person inner thoughts, slightly sardonic, self-aware, bold
+
+Current label body (without the label line):
+${content}
+
+Revision instruction: ${instructions}
+
+Rewrite the label body following the instruction. Preserve the Ren'Py structure (show/hide alfred, menu, return). Return ONLY valid Ren'Py code, no markdown fences, no label line.`;
 
         const response = await client.messages.create({
             model: 'claude-sonnet-4-6',
