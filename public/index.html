@@ -70,6 +70,7 @@
   .cell.stub     { background: #4a3a00; color: #c8a838; border-color: #6e5500; }
   .cell.missing  { background: #4a1a1a; color: #c86868; border-color: #6e2d2d; }
   .empty-badge { position: absolute; top: -4px; right: -4px; background: #c8a838; color: #1a1400; font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 4px; line-height: 1.4; }
+  .lint-badge  { position: absolute; top: -4px; left: -4px;  background: #c83838; color: #fff;    font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 5px; line-height: 1.4; cursor: help; }
 
   /* Hover tooltip */
   #hover-tooltip { position: fixed; background: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 8px 12px; font-size: 12px; pointer-events: none; z-index: 1000; display: none; max-width: 380px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
@@ -84,6 +85,22 @@
   .ctx-item { padding: 7px 14px; cursor: pointer; font-size: 12px; color: #ccc; }
   .ctx-item:hover { background: #094771; color: #fff; }
   .ctx-sep { border-top: 1px solid #3a3a3a; margin: 3px 0; }
+
+  /* Memory bar */
+  #memory-bar { padding: 5px 10px; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 8px; font-size: 11px; color: #888; }
+  #memory-bar b { color: #c8a0f0; }
+  #memory-toggle { cursor: pointer; user-select: none; }
+  #memory-toggle:hover { color: #ccc; }
+  #memory-panel { display: none; border-bottom: 1px solid #2a2a2a; max-height: 180px; overflow-y: auto; }
+  .mem-row { display: flex; align-items: baseline; gap: 6px; padding: 3px 10px; font-size: 11px; border-bottom: 1px solid #1e1e1e; }
+  .mem-who { color: #569cd6; font-weight: 600; min-width: 16px; }
+  .mem-en  { color: #888; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mem-arr { color: #555; }
+  .mem-cz  { color: #ccc; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mem-del { color: #666; cursor: pointer; padding: 0 4px; flex-shrink: 0; }
+  .mem-del:hover { color: #c86868; }
+  #memory-learn-btn { padding: 2px 8px; background: #2a1a3a; color: #c8a0f0; border: 1px solid #4a2a6a; border-radius: 3px; cursor: pointer; font-size: 11px; }
+  #memory-learn-btn:hover { background: #4a2a6a; }
 
   /* Legend + stats */
   #legend { padding: 8px 14px 4px; border-top: 1px solid #333; display: flex; gap: 12px; font-size: 11px; }
@@ -150,6 +167,11 @@
       <input id="search-input" placeholder="Search dialogue… (min 2 chars)" autocomplete="off" />
       <div id="search-results"></div>
     </div>
+    <div id="memory-bar">
+      <span id="memory-toggle">🧠 <b id="memory-count">0</b> phrases</span>
+      <button id="memory-learn-btn">Learn from files</button>
+    </div>
+    <div id="memory-panel"></div>
     <div id="grid-scroll" tabindex="0">
       <table id="grid-table"><tbody></tbody></table>
     </div>
@@ -284,6 +306,8 @@ async function init() {
   await refreshGrid();
   loadStats();
   loadTlEmpty();
+  loadLint();
+  loadMemory();
 
   const evtSource = new EventSource('/api/watch');
   evtSource.onmessage = async e => {
@@ -292,6 +316,7 @@ async function init() {
     await refreshGrid();
     loadStats();
     loadTlEmpty();
+    loadLint();
     if (!isDirty && currentLocation === location && currentState)
       await openLabel(currentLocation, currentState);
   };
@@ -360,6 +385,14 @@ function renderGrid() {
         badge.className = 'empty-badge';
         badge.textContent = empty;
         cell.appendChild(badge);
+      }
+      const issues = lintData[loc]?.[state] || [];
+      if (issues.length > 0) {
+        const lb = document.createElement('span');
+        lb.className = 'lint-badge';
+        lb.textContent = '⚠';
+        lb.title = issues.join('\n');
+        cell.appendChild(lb);
       }
 
       cell.addEventListener('click', () => { kbdLocIdx = li; kbdStateIdx = si; openLabel(loc, state); });
@@ -457,6 +490,7 @@ async function saveFile(location, updateStatus = true) {
   await refreshGrid();
   loadStats();
   loadTlEmpty();
+  loadLint();
 }
 
 document.getElementById('save-btn').addEventListener('click', () => {
@@ -544,6 +578,60 @@ document.getElementById('draft-btn').addEventListener('click', async () => {
     btn.disabled = false; btn.textContent = '✦ Draft EN';
   }
 });
+
+// ── Translation memory ────────────────────────────────────────────────────────
+let memoryData = [];
+
+async function loadMemory() {
+  memoryData = await fetch('/api/tl-memory').then(r => r.json());
+  renderMemory();
+}
+
+function renderMemory() {
+  document.getElementById('memory-count').textContent = memoryData.length;
+  const panel = document.getElementById('memory-panel');
+  if (panel.style.display === 'none' || !panel.style.display) return;
+  panel.innerHTML = memoryData.length === 0
+    ? '<div style="padding:8px 10px;color:#555;font-size:11px">No phrases yet — click Learn from files</div>'
+    : memoryData.map((m, i) => `
+      <div class="mem-row">
+        <span class="mem-who">${m.who}</span>
+        <span class="mem-en">${m.en}</span>
+        <span class="mem-arr">→</span>
+        <span class="mem-cz">${m.cz}</span>
+        <span class="mem-del" data-idx="${i}" title="Remove">✕</span>
+      </div>`).join('');
+  panel.querySelectorAll('.mem-del').forEach(el => {
+    el.addEventListener('click', async () => {
+      await fetch(`/api/tl-memory/${el.dataset.idx}`, { method: 'DELETE' });
+      await loadMemory();
+    });
+  });
+}
+
+document.getElementById('memory-toggle').addEventListener('click', () => {
+  const panel = document.getElementById('memory-panel');
+  panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+  renderMemory();
+});
+
+document.getElementById('memory-learn-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('memory-learn-btn');
+  btn.textContent = 'Learning…'; btn.disabled = true;
+  const data = await fetch('/api/tl-memory/learn', { method: 'POST' }).then(r => r.json());
+  btn.textContent = 'Learn from files'; btn.disabled = false;
+  await loadMemory();
+  document.getElementById('save-status').textContent = `🧠 +${data.added} phrases (total ${data.total})`;
+  setTimeout(() => document.getElementById('save-status').textContent = '', 3000);
+});
+
+// ── Lint ──────────────────────────────────────────────────────────────────────
+let lintData = {};
+
+async function loadLint() {
+  lintData = await fetch('/api/lint').then(r => r.json());
+  renderGrid();
+}
 
 // ── Generate CZ (single) ──────────────────────────────────────────────────────
 function updateGenerateBtn() {

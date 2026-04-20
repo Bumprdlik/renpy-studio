@@ -174,13 +174,108 @@ function parseDialogue(content, characters) {
     return { blocks, menuStrings };
 }
 
-// Call Claude API to translate dialogue and menu strings
+// ── Translation memory ────────────────────────────────────────────────────────
+
+function resolveMemoryPath() {
+    return path.join(projectPath, '.dispatcher-memory.json');
+}
+function loadMemory() {
+    const p = resolveMemoryPath();
+    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf-8')) : [];
+}
+function saveMemory(memory) {
+    fs.writeFileSync(resolveMemoryPath(), JSON.stringify(memory, null, 2), 'utf-8');
+}
+
+app.get('/api/tl-memory', (req, res) => res.json(loadMemory()));
+
+app.put('/api/tl-memory', (req, res) => {
+    saveMemory(req.body);
+    res.json({ ok: true });
+});
+
+app.delete('/api/tl-memory/:idx', (req, res) => {
+    const mem = loadMemory();
+    mem.splice(parseInt(req.params.idx), 1);
+    saveMemory(mem);
+    res.json({ ok: true });
+});
+
+app.post('/api/tl-memory/learn', (req, res) => {
+    const memory = loadMemory();
+    const existing = new Set(memory.map(m => `${m.who}||${m.en}`));
+    let added = 0;
+
+    for (const loc of config.locations) {
+        const tlPath = resolveTlFilePath(loc);
+        if (!fs.existsSync(tlPath)) continue;
+        const lines = fs.readFileSync(tlPath, 'utf-8').split('\n');
+        for (let i = 0; i < lines.length - 1; i++) {
+            const cm = lines[i].match(/^\s+#\s+(a|l|narrator)\s+"((?:[^"\\]|\\.)*)"\s*$/);
+            if (!cm) continue;
+            let j = i + 1;
+            while (j < lines.length && !lines[j].trim()) j++;
+            const tm = lines[j]?.match(/^\s+(a|l|narrator)\s+"((?:[^"\\]|\\.)*)"\s*$/);
+            if (!tm || !tm[2]) continue;
+            const key = `${cm[1]}||${cm[2]}`;
+            if (!existing.has(key)) {
+                memory.push({ who: cm[1], en: cm[2], cz: tm[2] });
+                existing.add(key);
+                added++;
+            }
+        }
+    }
+    saveMemory(memory);
+    res.json({ ok: true, added, total: memory.length });
+});
+
+// ── Lint ──────────────────────────────────────────────────────────────────────
+
+function lintLabel(content, labelName) {
+    const lines = content.split('\n');
+    const startIdx = lines.findIndex(l => l.trim() === `label ${labelName}:`);
+    if (startIdx === -1) return [];
+
+    const issues = [];
+    let showCount = 0, hideCount = 0, hasReturn = false;
+
+    for (let i = startIdx + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.match(/^label\s+/) && i > startIdx + 1) break;
+        const t = line.trim();
+        if (!t || t.startsWith('#')) continue;
+        if (t === 'return') hasReturn = true;
+        if (t.match(/^show alfred\b/)) showCount++;
+        if (t.match(/^hide alfred\b/)) hideCount++;
+    }
+
+    if (!hasReturn) issues.push('missing return');
+    if (showCount > hideCount) issues.push(`alfred shown ${showCount}× but hidden ${hideCount}×`);
+    return issues;
+}
+
+app.get('/api/lint', (req, res) => {
+    const result = {};
+    for (const loc of config.locations) {
+        result[loc] = {};
+        const content = fs.existsSync(resolveFilePath(loc))
+            ? fs.readFileSync(resolveFilePath(loc), 'utf-8') : '';
+        for (const state of config.states) {
+            const labelName = buildLabelName(loc, state);
+            const status = getLabelStatus(content, labelName);
+            result[loc][state] = status === 'written' ? lintLabel(content, labelName) : [];
+        }
+    }
+    res.json(result);
+});
+
+// ── Call Claude API to translate dialogue and menu strings ─────────────────────
 async function translateWithClaude(blocks, menuStrings, targetLang, apiKey) {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
 
     const tlDir = config.tlDir || 'tl/czech';
-    const langName = tlDir.split('/').pop(); // e.g. "czech"
+    const langName = tlDir.split('/').pop();
 
     const items = [
         ...blocks.map(b => ({ who: b.who || 'narrator', text: b.parsedWhat })),
@@ -189,6 +284,11 @@ async function translateWithClaude(blocks, menuStrings, targetLang, apiKey) {
 
     if (items.length === 0) return { dialogueTranslations: [], menuTranslations: [] };
 
+    const memory = loadMemory();
+    const memoryHint = memory.length > 0
+        ? `\nUse these established translations for consistency:\n${memory.slice(0, 40).map(m => `  ${m.who} "${m.en}" → "${m.cz}"`).join('\n')}\n`
+        : '';
+
     const prompt = `Translate the following Ren'Py visual novel strings from English to ${langName}.
 
 Character voices:
@@ -196,7 +296,7 @@ Character voices:
 - "l" = Lara, first-person inner thoughts, slightly sardonic and self-aware
 - "narrator" = neutral scene description, concise
 - "menu" = player choice button labels, keep short
-
+${memoryHint}
 Return ONLY a valid JSON array with one object per input item, in the same order, each with a single "t" field containing the translation. No markdown, no explanation.
 
 Input:
