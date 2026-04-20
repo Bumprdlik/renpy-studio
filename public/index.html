@@ -43,6 +43,25 @@
   #revise-go:disabled { background: #333; color: #666; cursor: default; }
   #revise-cancel { padding: 4px 8px; background: transparent; color: #666; border: 1px solid #444; border-radius: 3px; cursor: pointer; font-size: 12px; }
   #revise-cancel:hover { color: #ccc; background: #333; }
+  #export-csv-btn { padding: 5px 14px; background: #1a3a2a; color: #88c8a8; border: 1px solid #2a5a3a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
+  #export-csv-btn:hover { background: #2a5a3a; }
+  #import-csv-btn { padding: 5px 14px; background: #1a2a3a; color: #88a8c8; border: 1px solid #2a3a5a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
+  #import-csv-btn:hover { background: #2a3a5a; }
+  .cell.batch-selected { outline: 2px solid #5a8aff; outline-offset: 1px; }
+  #diff-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000; display: none; align-items: center; justify-content: center; }
+  #diff-inner { background: #252526; border: 1px solid #444; border-radius: 6px; width: 82vw; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+  #diff-header-bar { padding: 8px 16px; border-bottom: 1px solid #333; font-size: 13px; color: #ccc; display: flex; align-items: center; gap: 10px; }
+  #diff-header-bar small { color: #888; font-size: 11px; }
+  #diff-cols { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+  .diff-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .diff-col + .diff-col { border-left: 1px solid #333; }
+  .diff-col-label { padding: 4px 12px; font-size: 11px; color: #888; background: #1e1e1e; border-bottom: 1px solid #333; }
+  .diff-col pre { flex: 1; overflow: auto; padding: 10px 14px; font-family: Consolas, monospace; font-size: 12px; white-space: pre; color: #ccc; margin: 0; line-height: 1.5; }
+  #diff-actions { padding: 10px 16px; border-top: 1px solid #333; display: flex; justify-content: flex-end; gap: 8px; }
+  #diff-accept { padding: 5px 18px; background: #2d6e2d; color: #aee8ae; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; }
+  #diff-accept:hover { background: #3a8a3a; }
+  #diff-reject { padding: 5px 14px; background: transparent; color: #888; border: 1px solid #444; border-radius: 3px; cursor: pointer; font-size: 13px; }
+  #diff-reject:hover { background: #333; color: #ccc; }
 
   /* Layout */
   #main { display: flex; flex: 1; overflow: hidden; }
@@ -142,6 +161,19 @@
 </head>
 <body>
 
+<div id="diff-modal">
+  <div id="diff-inner">
+    <div id="diff-header-bar">✎ Revision preview <small id="diff-label-hint"></small></div>
+    <div id="diff-cols">
+      <div class="diff-col"><div class="diff-col-label">Before</div><pre id="diff-before"></pre></div>
+      <div class="diff-col"><div class="diff-col-label">After</div><pre id="diff-after"></pre></div>
+    </div>
+    <div id="diff-actions">
+      <button id="diff-reject">Reject</button>
+      <button id="diff-accept">Accept</button>
+    </div>
+  </div>
+</div>
 <div id="hover-tooltip"></div>
 <div id="ctx-menu">
   <div class="ctx-item" id="ctx-open">Open</div>
@@ -162,6 +194,9 @@
   <button id="revise-btn">✎ Revise</button>
   <button id="bulk-gen-btn">⟳ Generate All CZ</button>
   <button id="generate-btn">Generate CZ</button>
+  <button id="export-csv-btn">⬇ Export CSV</button>
+  <input id="import-csv-input" type="file" accept=".csv" style="display:none" />
+  <button id="import-csv-btn">⬆ Import CSV</button>
   <button id="save-btn" disabled>Save</button>
   <span id="save-status"></span>
   <span id="tl-warning">⚠ tl file missing — run Generate Translations in Ren'Py Launcher</span>
@@ -327,6 +362,7 @@ async function init() {
   loadTlEmpty();
   loadLint();
   loadMemory();
+  updateCsvBtns();
 
   const evtSource = new EventSource('/api/watch');
   evtSource.onmessage = async e => {
@@ -414,7 +450,11 @@ function renderGrid() {
         cell.appendChild(lb);
       }
 
-      cell.addEventListener('click', () => { kbdLocIdx = li; kbdStateIdx = si; openLabel(loc, state); });
+      if (selectedCells.has(`${loc}/${state}`)) cell.classList.add('batch-selected');
+      cell.addEventListener('click', e => {
+        if (e.ctrlKey || e.metaKey) { toggleBatchSelect(loc, state); return; }
+        kbdLocIdx = li; kbdStateIdx = si; openLabel(loc, state);
+      });
       cell.addEventListener('contextmenu', e => showCtxMenu(e, loc, state, li, si));
       attachHover(cell, loc, state);
       td.appendChild(cell);
@@ -526,7 +566,7 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
     document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
     updateBulkGenBtn();
     if (currentLocation && currentState) await openLabel(currentLocation, currentState);
-    else { updateDraftBtn(); updateReviseBtn(); updateGenerateBtn(); updateSplitBtn(); }
+    else { updateDraftBtn(); updateReviseBtn(); updateGenerateBtn(); updateSplitBtn(); updateCsvBtns(); }
   });
 });
 
@@ -599,10 +639,29 @@ document.getElementById('draft-btn').addEventListener('click', async () => {
   }
 });
 
+// ── Batch selection ───────────────────────────────────────────────────────────
+const selectedCells = new Set(); // "loc/state"
+
+function toggleBatchSelect(loc, state) {
+  const key = `${loc}/${state}`;
+  if (selectedCells.has(key)) selectedCells.delete(key);
+  else selectedCells.add(key);
+  renderGrid();
+  updateReviseBtn();
+}
+
+// Patch renderGrid to add batch-selected class
+const _origRenderGrid = renderGrid;
+// (augmented below via cell event listener)
+
 // ── Revise EN ─────────────────────────────────────────────────────────────────
+let pendingRevision = null; // { labelLine, endLine, newContent }
+
 function updateReviseBtn() {
-  const show = currentLang === 'en' && !!currentLocation;
-  document.getElementById('revise-btn').style.display = show ? 'inline-block' : 'none';
+  const show = currentLang === 'en' && (!!currentLocation || selectedCells.size > 0);
+  const btn = document.getElementById('revise-btn');
+  btn.style.display = show ? 'inline-block' : 'none';
+  btn.textContent = selectedCells.size > 1 ? `✎ Revise (${selectedCells.size})` : '✎ Revise';
 }
 
 document.getElementById('revise-btn').addEventListener('click', () => {
@@ -624,44 +683,121 @@ document.getElementById('revise-input').addEventListener('keydown', e => {
   if (e.key === 'Escape') document.getElementById('revise-cancel').click();
 });
 
+function extractLabelBody(lines, labelName) {
+  const labelLine = lines.findIndex(l => l.trim() === `label ${labelName}:`) + 1;
+  if (labelLine === 0) return null;
+  let endLine = labelLine + 1;
+  while (endLine <= lines.length && !lines[endLine - 1].match(/^label\s+/)) endLine++;
+  return { labelLine, endLine, body: lines.slice(labelLine, endLine - 1).join('\n') };
+}
+
 document.getElementById('revise-go').addEventListener('click', async () => {
-  if (!currentLocation || !currentState) return;
   const instructions = document.getElementById('revise-input').value.trim();
   if (!instructions) return;
   const btn = document.getElementById('revise-go');
   const apiKey = document.getElementById('api-key-input').value.trim();
   btn.disabled = true; btn.textContent = '…';
+
+  // Batch mode: more than one selected cell
+  if (selectedCells.size > 1) {
+    const cells = [...selectedCells].map(k => { const [loc, state] = k.split('/'); return { loc, state }; });
+    let done = 0;
+    document.getElementById('save-status').textContent = `⟳ revising 0/${cells.length}…`;
+    for (const { loc, state } of cells) {
+      try {
+        const fileRes = await fetch(`/api/file/${loc}`).then(r => r.json());
+        const lines = fileRes.content.split('\n');
+        const labelName = config.labelPattern.replace('{location}', loc).replace('{state}', state);
+        const parsed = extractLabelBody(lines, labelName);
+        if (!parsed) continue;
+        const res = await fetch(`/api/revise-en/${loc}/${state}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: parsed.body, instructions, apiKey: apiKey || undefined }),
+        });
+        const data = await res.json();
+        if (!res.ok) continue;
+        const newLines = [
+          ...lines.slice(0, parsed.labelLine),
+          ...data.content.split('\n'),
+          '',
+          ...lines.slice(parsed.endLine - 1),
+        ];
+        await fetch(`/api/file/${loc}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: newLines.join('\n') }),
+        });
+        done++;
+        document.getElementById('save-status').textContent = `⟳ revising ${done}/${cells.length}…`;
+      } catch (_) {}
+    }
+    selectedCells.clear();
+    btn.disabled = false; btn.textContent = '✎ Revise';
+    document.getElementById('revise-bar').style.display = 'none';
+    document.getElementById('save-status').textContent = `✓ revised ${done}/${cells.length}`;
+    setTimeout(() => document.getElementById('save-status').textContent = '', 3000);
+    await refreshGrid(); loadStats(); loadLint();
+    if (currentLocation && currentState) await openLabel(currentLocation, currentState);
+    return;
+  }
+
+  // Single cell — show diff modal
+  if (!currentLocation || !currentState) { btn.disabled = false; btn.textContent = '✎ Revise'; return; }
   document.getElementById('save-status').textContent = '⟳ revising…';
   try {
     const labelName = config.labelPattern
       .replace('{location}', currentLocation).replace('{state}', currentState);
     const model = editor.getModel();
     const lines = model.getLinesContent();
-    const labelLine = lines.findIndex(l => l.trim() === `label ${labelName}:`) + 1;
-    if (labelLine === 0) throw new Error('Label not found in editor');
-    let endLine = labelLine + 1;
-    while (endLine <= lines.length && !lines[endLine - 1].match(/^label\s+/)) endLine++;
-    const currentBody = lines.slice(labelLine, endLine - 1).join('\n');
+    const parsed = extractLabelBody(lines, labelName);
+    if (!parsed) throw new Error('Label not found in editor');
 
     const res = await fetch(`/api/revise-en/${currentLocation}/${currentState}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: currentBody, instructions, apiKey: apiKey || undefined }),
+      body: JSON.stringify({ content: parsed.body, instructions, apiKey: apiKey || undefined }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    editor.executeEdits('revise', [{
-      range: new monaco.Range(labelLine + 1, 1, endLine, 1),
-      text: data.content + '\n',
-    }]);
-    editor.revealLineInCenter(labelLine + 1);
-    isDirty = true;
-    document.getElementById('save-btn').disabled = false;
-    document.getElementById('save-status').textContent = '● review & save';
+
+    pendingRevision = { labelLine: parsed.labelLine, endLine: parsed.endLine, newContent: data.content };
+    document.getElementById('diff-before').textContent = parsed.body;
+    document.getElementById('diff-after').textContent = data.content;
+    document.getElementById('diff-label-hint').textContent = `— ${labelName}`;
+    document.getElementById('diff-modal').style.display = 'flex';
+    document.getElementById('save-status').textContent = '● review revision';
     document.getElementById('revise-bar').style.display = 'none';
   } catch (e) {
     document.getElementById('save-status').textContent = '✗ ' + e.message;
   } finally {
-    btn.disabled = false; btn.textContent = 'Go';
+    btn.disabled = false; btn.textContent = selectedCells.size > 1 ? `✎ Revise (${selectedCells.size})` : '✎ Revise';
+  }
+});
+
+// ── Diff modal ────────────────────────────────────────────────────────────────
+document.getElementById('diff-accept').addEventListener('click', () => {
+  if (!pendingRevision) return;
+  const { labelLine, endLine, newContent } = pendingRevision;
+  editor.executeEdits('revise', [{
+    range: new monaco.Range(labelLine + 1, 1, endLine, 1),
+    text: newContent + '\n',
+  }]);
+  editor.revealLineInCenter(labelLine + 1);
+  isDirty = true;
+  document.getElementById('save-btn').disabled = false;
+  document.getElementById('save-status').textContent = '● review & save';
+  document.getElementById('diff-modal').style.display = 'none';
+  pendingRevision = null;
+});
+
+document.getElementById('diff-reject').addEventListener('click', () => {
+  document.getElementById('diff-modal').style.display = 'none';
+  pendingRevision = null;
+  document.getElementById('save-status').textContent = '';
+});
+
+document.getElementById('diff-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('diff-modal')) {
+    document.getElementById('diff-modal').style.display = 'none';
+    pendingRevision = null;
   }
 });
 
@@ -979,6 +1115,50 @@ async function runSearch(q) {
     });
   });
 }
+
+// ── CSV Export / Import ───────────────────────────────────────────────────────
+function updateCsvBtns() {
+  const show = currentLang === 'cz';
+  document.getElementById('export-csv-btn').style.display = show ? 'inline-block' : 'none';
+  document.getElementById('import-csv-btn').style.display = show ? 'inline-block' : 'none';
+}
+
+document.getElementById('export-csv-btn').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = '/api/export-csv';
+  a.download = 'translations.csv';
+  a.click();
+});
+
+document.getElementById('import-csv-btn').addEventListener('click', () => {
+  document.getElementById('import-csv-input').value = '';
+  document.getElementById('import-csv-input').click();
+});
+
+document.getElementById('import-csv-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const csv = await file.text();
+  const btn = document.getElementById('import-csv-btn');
+  btn.disabled = true; btn.textContent = 'Importing…';
+  document.getElementById('save-status').textContent = '⟳ importing…';
+  try {
+    const res = await fetch('/api/import-csv', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    document.getElementById('save-status').textContent = `✓ ${data.updated} strings imported`;
+    setTimeout(() => document.getElementById('save-status').textContent = '', 3000);
+    await refreshGrid(); loadTlEmpty();
+    if (currentLocation && currentState) await openLabel(currentLocation, currentState);
+  } catch (err) {
+    document.getElementById('save-status').textContent = '✗ ' + err.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '⬆ Import CSV';
+  }
+});
 
 // ── Ctrl+S ────────────────────────────────────────────────────────────────────
 window.addEventListener('keydown', e => {

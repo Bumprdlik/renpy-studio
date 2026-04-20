@@ -631,6 +631,165 @@ Rewrite the label body following the instruction. Preserve the Ren'Py structure 
     }
 });
 
+// ── CSV Export / Import ───────────────────────────────────────────────────────
+
+function csvEscape(s) {
+    return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+}
+
+function parseCSV(text) {
+    const rows = [];
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    for (const line of lines) {
+        if (!line.trim()) continue;
+        const row = [];
+        let i = 0;
+        while (i < line.length) {
+            if (line[i] === '"') {
+                i++;
+                let cell = '';
+                while (i < line.length) {
+                    if (line[i] === '"' && line[i + 1] === '"') { cell += '"'; i += 2; }
+                    else if (line[i] === '"') { i++; break; }
+                    else { cell += line[i++]; }
+                }
+                row.push(cell);
+                if (line[i] === ',') i++;
+            } else {
+                const end = line.indexOf(',', i);
+                if (end === -1) { row.push(line.slice(i)); break; }
+                row.push(line.slice(i, end));
+                i = end + 1;
+            }
+        }
+        rows.push(row);
+    }
+    return rows;
+}
+
+app.get('/api/export-csv', (req, res) => {
+    const characters = config.characters || ['a', 'l', 'narrator'];
+    const rows = [['id', 'location', 'who', 'en', 'cz']];
+
+    for (const loc of config.locations) {
+        const filePath = resolveFilePath(loc);
+        if (!fs.existsSync(filePath)) continue;
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const { blocks, menuStrings } = parseDialogue(content, characters);
+
+        const tlPath = resolveTlFilePath(loc);
+        const tlContent = fs.existsSync(tlPath) ? fs.readFileSync(tlPath, 'utf-8') : '';
+        const seenIds = new Set();
+
+        for (const block of blocks) {
+            const { label, who, parsedWhat } = block;
+            const digest = computeHash(who, parsedWhat);
+            const id = uniqueIdentifier(label, digest, seenIds);
+
+            let cz = '';
+            if (tlContent) {
+                const blockIdx = tlContent.indexOf(`translate czech ${id}:`);
+                if (blockIdx !== -1) {
+                    const nextIdx = tlContent.indexOf('\ntranslate czech ', blockIdx + 1);
+                    const slice = nextIdx === -1 ? tlContent.slice(blockIdx) : tlContent.slice(blockIdx, nextIdx);
+                    const charRe = who
+                        ? new RegExp(`^\\s+${who}\\s+"((?:[^"\\\\]|\\\\.)*)"`, 'm')
+                        : /^\s+"((?:[^"\\]|\\.)*)"/m;
+                    const m = slice.match(charRe);
+                    if (m) cz = unescapeRpyString(m[1]);
+                }
+            }
+            rows.push([id, loc, who || 'narrator', parsedWhat, cz]);
+        }
+
+        for (const ms of menuStrings) {
+            let cz = '';
+            if (tlContent) {
+                const esc = ms.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/"/g, '\\"');
+                const m = tlContent.match(new RegExp(`old "${esc}"\\s*\\n\\s*new "((?:[^"\\\\]|\\\\.)*)"`));
+                if (m) cz = unescapeRpyString(m[1]);
+            }
+            rows.push([`menu_${loc}_L${ms.sourceLine}`, loc, 'menu', ms.text, cz]);
+        }
+    }
+
+    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="translations.csv"');
+    res.send(csv);
+});
+
+app.post('/api/import-csv', (req, res) => {
+    try {
+        const { csv } = req.body;
+        if (!csv) return res.status(400).json({ error: 'csv required' });
+
+        const rows = parseCSV(csv);
+        if (rows.length < 2) return res.json({ ok: true, updated: 0 });
+
+        const header = rows[0];
+        const col = name => header.indexOf(name);
+        const idIdx = col('id'), czIdx = col('cz'), whoIdx = col('who');
+        const enIdx = col('en'), locIdx = col('location');
+        if (idIdx === -1 || czIdx === -1 || locIdx === -1)
+            return res.status(400).json({ error: 'CSV must have id, location, cz columns' });
+
+        // Group by location
+        const byLoc = {};
+        for (let i = 1; i < rows.length; i++) {
+            const r = rows[i];
+            const id = r[idIdx] || '', cz = r[czIdx] || '', loc = r[locIdx] || '';
+            if (!id || !cz || !loc) continue;
+            if (!byLoc[loc]) byLoc[loc] = [];
+            byLoc[loc].push({ id, cz, who: whoIdx >= 0 ? r[whoIdx] : '', en: enIdx >= 0 ? r[enIdx] : '' });
+        }
+
+        let updated = 0;
+        for (const loc of Object.keys(byLoc)) {
+            const tlPath = resolveTlFilePath(loc);
+            if (!fs.existsSync(tlPath)) continue;
+            let tlContent = fs.readFileSync(tlPath, 'utf-8');
+
+            for (const { id, cz, who, en } of byLoc[loc]) {
+                const encoded = encodeSayString(cz).slice(1, -1);
+
+                if (id.startsWith('menu_')) {
+                    const esc = en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/"/g, '\\"');
+                    const before = tlContent;
+                    tlContent = tlContent.replace(
+                        new RegExp(`(old "${esc}"\\s*\\n\\s*new )"(?:[^"\\\\]|\\\\.)*"`),
+                        (_, prefix) => `${prefix}"${encoded}"`
+                    );
+                    if (tlContent !== before) updated++;
+                } else {
+                    const blockIdx = tlContent.indexOf(`translate czech ${id}:`);
+                    if (blockIdx === -1) continue;
+                    const nextIdx = tlContent.indexOf('\ntranslate czech ', blockIdx + 1);
+                    const blockEnd = nextIdx === -1 ? tlContent.length : nextIdx;
+                    const block = tlContent.slice(blockIdx, blockEnd);
+                    const whoStr = who && who !== 'narrator' ? who : null;
+                    const lineRe = whoStr
+                        ? new RegExp(`^(\\s+)${whoStr}\\s+"(?:[^"\\\\]|\\\\.)*"\\s*$`, 'm')
+                        : /^(\s+)"(?:[^"\\]|\\.)*"\s*$/m;
+                    const newBlock = block.replace(lineRe, (_, indent) =>
+                        whoStr ? `${indent}${whoStr} "${encoded}"` : `${indent}"${encoded}"`
+                    );
+                    if (newBlock !== block) {
+                        tlContent = tlContent.slice(0, blockIdx) + newBlock + tlContent.slice(blockEnd);
+                        updated++;
+                    }
+                }
+            }
+
+            fs.writeFileSync(tlPath, tlContent, 'utf-8');
+        }
+
+        res.json({ ok: true, updated });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ── TL empty count ────────────────────────────────────────────────────────────
 
 app.get('/api/tl-empty', (req, res) => {
