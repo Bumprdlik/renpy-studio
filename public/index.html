@@ -20,6 +20,9 @@
   .lang-btn.active { background: #0e639c; color: #fff; }
   .lang-btn:hover:not(.active) { background: #333; color: #ccc; }
   #tl-warning { font-size: 11px; color: #c8a838; background: #2a2500; padding: 3px 10px; border-radius: 3px; display: none; }
+  #draft-btn { padding: 5px 14px; background: #4a2a6a; color: #c8a0f0; border: 1px solid #6a3a9a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
+  #draft-btn:hover { background: #6a3a9a; }
+  #draft-btn:disabled { background: #333; color: #666; border-color: #444; cursor: default; }
   #generate-btn { padding: 5px 14px; background: #2d6e2d; color: #aee8ae; border: 1px solid #3a8a3a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
   #generate-btn:hover { background: #3a8a3a; }
   #generate-btn:disabled { background: #333; color: #666; border-color: #444; cursor: default; }
@@ -126,6 +129,7 @@
     <button class="lang-btn" data-lang="cz">CZ</button>
   </div>
   <input id="api-key-input" type="password" placeholder="Anthropic API key" />
+  <button id="draft-btn">✦ Draft EN</button>
   <button id="bulk-gen-btn">⟳ Generate All CZ</button>
   <button id="generate-btn">Generate CZ</button>
   <button id="save-btn" disabled>Save</button>
@@ -409,6 +413,7 @@ async function openLabel(location, state) {
   document.getElementById('monaco').style.display = 'block';
   isDirty = false;
   document.getElementById('save-status').textContent = '';
+  updateDraftBtn();
   updateGenerateBtn();
   updateSplitBtn();
   if (splitActive) await loadEnPanel(location);
@@ -467,7 +472,7 @@ document.querySelectorAll('.lang-btn').forEach(btn => {
     document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
     updateBulkGenBtn();
     if (currentLocation && currentState) await openLabel(currentLocation, currentState);
-    else { updateGenerateBtn(); updateSplitBtn(); }
+    else { updateDraftBtn(); updateGenerateBtn(); updateSplitBtn(); }
   });
 });
 
@@ -494,11 +499,57 @@ document.getElementById('split-btn').addEventListener('click', async () => {
   if (splitActive && currentLocation) await loadEnPanel(currentLocation);
 });
 
+// ── Draft EN ──────────────────────────────────────────────────────────────────
+function updateDraftBtn() {
+  const show = currentLang === 'en' && !!currentLocation;
+  document.getElementById('draft-btn').style.display = show ? 'inline-block' : 'none';
+  document.getElementById('api-key-input').style.display = !!currentLocation ? 'inline-block' : 'none';
+}
+
+document.getElementById('draft-btn').addEventListener('click', async () => {
+  if (!currentLocation || !currentState) return;
+  const btn = document.getElementById('draft-btn');
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  btn.disabled = true; btn.textContent = 'Drafting…';
+  document.getElementById('save-status').textContent = '⟳ writing…';
+  try {
+    const res = await fetch(`/api/draft-en/${currentLocation}/${currentState}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: apiKey || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const labelName = config.labelPattern
+      .replace('{location}', currentLocation).replace('{state}', currentState);
+    const model = editor.getModel();
+    const lines = model.getLinesContent();
+    const labelLine = lines.findIndex(l => l.trim() === `label ${labelName}:`) + 1;
+    if (labelLine === 0) throw new Error('Label not found in editor');
+
+    let endLine = labelLine + 1;
+    while (endLine <= lines.length && !lines[endLine - 1].match(/^label\s+/)) endLine++;
+
+    editor.executeEdits('draft', [{
+      range: new monaco.Range(labelLine + 1, 1, endLine, 1),
+      text: data.content + '\n',
+    }]);
+    editor.revealLineInCenter(labelLine + 1);
+    isDirty = true;
+    document.getElementById('save-btn').disabled = false;
+    document.getElementById('save-status').textContent = '● review & save';
+  } catch (e) {
+    document.getElementById('save-status').textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '✦ Draft EN';
+  }
+});
+
 // ── Generate CZ (single) ──────────────────────────────────────────────────────
 function updateGenerateBtn() {
   const show = currentLang === 'cz' && !!currentLocation;
   document.getElementById('generate-btn').style.display = show ? 'inline-block' : 'none';
-  document.getElementById('api-key-input').style.display = (currentLang === 'cz') ? 'inline-block' : 'none';
+  document.getElementById('api-key-input').style.display = !!currentLocation ? 'inline-block' : 'none';
 }
 
 document.getElementById('generate-btn').addEventListener('click', async () => {

@@ -405,6 +405,90 @@ app.post('/api/generate-tl/:location', async (req, res) => {
     }
 });
 
+// ── AI draft EN dialogue ──────────────────────────────────────────────────────
+
+function extractLabelBlocks(content, excludeLabel, maxBlocks) {
+    const lines = content.split('\n');
+    const blocks = [];
+    let currentLabel = null;
+    let blockStart = -1;
+
+    for (let i = 0; i <= lines.length; i++) {
+        const line = lines[i] || '';
+        const lm = line.match(/^label\s+([\w]+)\s*:/);
+        if (lm || i === lines.length) {
+            if (currentLabel && currentLabel !== excludeLabel && blockStart >= 0) {
+                const blockLines = lines.slice(blockStart, i);
+                if (blockLines.some(l => l.match(/^\s+(a|l|narrator)\s+"/))) {
+                    blocks.push(blockLines.join('\n').trimEnd());
+                    if (blocks.length >= maxBlocks) break;
+                }
+            }
+            if (lm) { currentLabel = lm[1]; blockStart = i; }
+        }
+    }
+    return blocks.join('\n\n');
+}
+
+app.post('/api/draft-en/:location/:state', async (req, res) => {
+    try {
+        const { location, state } = req.params;
+        const apiKey = req.body.apiKey || process.env.ANTHROPIC_API_KEY || config.anthropicApiKey;
+        if (!apiKey) return res.status(400).json({ error: 'No Anthropic API key.' });
+
+        const filePath = resolveFilePath(location);
+        const content = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
+        const labelName = buildLabelName(location, state);
+        const styleExamples = extractLabelBlocks(content, labelName, 2);
+
+        const locationDescs = config.locationDescs || {
+            bathroom: 'bathroom — cold tiles, intimate, Lara after or before shower',
+            bedroom:  'bedroom — most private space, Lara dresses/undresses here',
+            dining_room: 'dining room — formal, Alfred serves meals here',
+        };
+        const stateDescs = config.stateDescs || {
+            naked:     'completely naked',
+            towel:     'wrapped only in a towel',
+            negligee:  'wearing a sheer negligee',
+            underwear: 'in underwear',
+            casual:    'in casual clothes (shorts and t-shirt)',
+        };
+
+        const Anthropic = require('@anthropic-ai/sdk');
+        const client = new Anthropic({ apiKey });
+
+        const prompt = `You are writing dialogue for a Ren'Py visual novel called "Lara".
+
+Characters:
+- Alfred (variable: a): formal English butler, polite, slightly stiff, proper British mannerisms, secretly fascinated by Lara
+- Lara (variable: l): first-person inner thoughts/narration, slightly sardonic, self-aware, bold
+
+Scene: ${locationDescs[location] || location}
+Lara's current state: ${stateDescs[state] || state}
+Label to fill: ${labelName}
+
+${styleExamples ? `Style examples from this file — match this tone exactly:\n\n${styleExamples}\n` : ''}
+Write the body of label \`${labelName}\` (do NOT include the label line itself).
+
+Requirements:
+- Open with \`show alfred\` at appropriate expression (neutral / surprised / flustered)
+- 2–3 player choices via menu, each with a short distinct outcome (2–4 lines)
+- Close with \`hide alfred with dissolve\` and \`return\`
+- Total 10–18 lines
+- Return ONLY valid Ren'Py code, no markdown fences, no comments`;
+
+        const response = await client.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
+            messages: [{ role: 'user', content: prompt }],
+        });
+
+        res.json({ content: response.content[0].text.trim() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ── TL empty count ────────────────────────────────────────────────────────────
 
 app.get('/api/tl-empty', (req, res) => {
