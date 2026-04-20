@@ -62,6 +62,52 @@ dispatcher-editor --project=/path/to/your-renpy-project
 
 Copy `.dispatcher.example.json` to `.dispatcher.json` in your project and adjust the values.
 
+## Typical workflow
+
+### Writing new dialogue (EN)
+
+1. Start the editor: `dispatcher-editor` → open **http://localhost:3000**
+2. Find a **✗ missing** or **~ stub** cell in the grid
+3. **Right-click → Insert Alfred template** — pre-fills a starter dialogue skeleton directly in Monaco
+4. Write the dialogue in English, `Ctrl+S` to save
+5. The grid cell turns **✓ written** immediately (watch mode keeps the grid live)
+6. For complex scenes, click the **file path link** in the editor header → opens the file in VS Code at the exact line. Edit there, the grid refreshes automatically on save.
+
+```
+dispatcher editor          VS Code
+──────────────────         ──────────────────────────────
+right-click → template  →  (or open via path link)
+write dialogue          ←→ edit .rpy, Ctrl+S
+Ctrl+S saves + grid ✓      watch mode refreshes grid
+```
+
+### Translating to Czech
+
+1. Switch to **CZ** in the language toggle
+2. **⟳ Generate All CZ** — translates all files at once via Claude API (set API key first)
+   - Or **Generate CZ** for just the current file
+3. Review the generated translations in Monaco (toggle **⧉ Split EN** to see EN source beside CZ)
+4. `Ctrl+S` to save — the **orange badge** on the cell shows how many strings are still empty
+5. Fill in remaining gaps manually
+
+```
+EN mode: write story  →  CZ mode: Generate All CZ
+                          review in Split view
+                          fix empty strings (orange badge)
+                          Ctrl+S
+```
+
+### Daily routine
+
+```
+1. dispatcher-editor          # start server
+2. Look at grid               # find gaps (✗ missing, ~ stub, orange badge)
+3. Right-click stub → Insert template → write EN dialogue
+4. Ctrl+S → cell turns ✓
+5. Switch CZ → Generate CZ → review → Ctrl+S
+6. Repeat
+```
+
 ## Generate CZ (AI translation)
 
 Switch to **CZ** mode, open any cell, then click **Generate CZ**. The server parses the English source, computes Ren'Py-compatible MD5 hashes, calls Claude to translate, and loads the result into Monaco for review. Save with `Ctrl+S` when happy.
