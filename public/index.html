@@ -23,7 +23,10 @@
   #generate-btn { padding: 5px 14px; background: #2d6e2d; color: #aee8ae; border: 1px solid #3a8a3a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
   #generate-btn:hover { background: #3a8a3a; }
   #generate-btn:disabled { background: #333; color: #666; border-color: #444; cursor: default; }
-  #api-key-input { padding: 4px 8px; background: #1a1a1a; color: #ccc; border: 1px solid #444; border-radius: 3px; font-size: 12px; width: 220px; display: none; }
+  #bulk-gen-btn { padding: 5px 14px; background: #1a3a6a; color: #88aaee; border: 1px solid #2a4a8a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
+  #bulk-gen-btn:hover { background: #2a4a8a; }
+  #bulk-gen-btn:disabled { background: #333; color: #666; border-color: #444; cursor: default; }
+  #api-key-input { padding: 4px 8px; background: #1a1a1a; color: #ccc; border: 1px solid #444; border-radius: 3px; font-size: 12px; width: 200px; display: none; }
   #api-key-input::placeholder { color: #555; }
 
   /* Layout */
@@ -43,7 +46,7 @@
   #search-input { width: 100%; padding: 5px 8px; background: #1a1a1a; color: #ccc; border: 1px solid #3a3a3a; border-radius: 3px; font-size: 12px; outline: none; }
   #search-input:focus { border-color: #0e639c; }
   #search-input::placeholder { color: #555; }
-  #search-results { position: absolute; left: 10px; right: 10px; top: 100%; background: #252526; border: 1px solid #444; border-radius: 3px; z-index: 200; max-height: 260px; overflow-y: auto; display: none; }
+  #search-results { position: absolute; left: 10px; right: 10px; top: 100%; background: #252526; border: 1px solid #444; border-radius: 3px; z-index: 200; max-height: 260px; overflow-y: auto; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
   .search-item { padding: 6px 10px; cursor: pointer; border-bottom: 1px solid #2a2a2a; }
   .search-item:hover { background: #2d2d2d; }
   .search-item-label { font-size: 11px; color: #569cd6; margin-bottom: 2px; }
@@ -56,13 +59,14 @@
   th { padding: 6px 8px; text-align: left; color: #888; font-weight: 500; border-bottom: 1px solid #333; }
   th.state-col { color: #aaa; }
   td { padding: 4px 6px; }
-  .cell { padding: 5px 8px; border-radius: 3px; cursor: pointer; text-align: center; font-size: 11px; font-weight: 500; border: 1px solid transparent; transition: filter 0.1s; white-space: nowrap; }
+  .cell { padding: 5px 8px; border-radius: 3px; cursor: pointer; text-align: center; font-size: 11px; font-weight: 500; border: 1px solid transparent; transition: filter 0.1s; white-space: nowrap; position: relative; }
   .cell:hover { filter: brightness(1.2); }
   .cell.active { border-color: #fff !important; }
   .cell.kbd-focus { outline: 2px solid #fff; outline-offset: 1px; }
   .cell.written  { background: #1a4a1a; color: #6dbf6d; border-color: #2d6e2d; }
   .cell.stub     { background: #4a3a00; color: #c8a838; border-color: #6e5500; }
   .cell.missing  { background: #4a1a1a; color: #c86868; border-color: #6e2d2d; }
+  .empty-badge { position: absolute; top: -4px; right: -4px; background: #c8a838; color: #1a1400; font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 4px; line-height: 1.4; }
 
   /* Hover tooltip */
   #hover-tooltip { position: fixed; background: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 8px 12px; font-size: 12px; pointer-events: none; z-index: 1000; display: none; max-width: 380px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
@@ -72,13 +76,17 @@
   .tip-who-n { color: #888; font-style: italic; }
   .tip-empty { color: #555; font-style: italic; }
 
+  /* Context menu */
+  #ctx-menu { position: fixed; background: #2d2d2d; border: 1px solid #444; border-radius: 4px; z-index: 500; display: none; min-width: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 4px 0; }
+  .ctx-item { padding: 7px 14px; cursor: pointer; font-size: 12px; color: #ccc; }
+  .ctx-item:hover { background: #094771; color: #fff; }
+  .ctx-sep { border-top: 1px solid #3a3a3a; margin: 3px 0; }
+
   /* Legend + stats */
   #legend { padding: 8px 14px 4px; border-top: 1px solid #333; display: flex; gap: 12px; font-size: 11px; }
   .leg { display: flex; align-items: center; gap: 5px; }
   .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
-  #stats-bar { padding: 4px 14px 8px; font-size: 11px; color: #666; display: flex; gap: 12px; }
-  .stat-char { color: #888; }
-  .stat-char span { font-weight: 600; }
+  #stats-bar { padding: 4px 14px 8px; font-size: 11px; display: flex; gap: 12px; }
   .stat-a { color: #9cdcfe; }
   .stat-l { color: #ce9178; }
   .stat-n { color: #888; }
@@ -86,14 +94,15 @@
   /* Editor panel */
   #editor-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
   #editor-header { padding: 8px 14px; background: #2d2d2d; border-bottom: 1px solid #333; font-size: 12px; color: #888; display: flex; align-items: center; gap: 10px; }
-  #editor-header span { color: #ccc; }
   #editor-header .label-badge { background: #0e639c; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; }
+  #editor-file-link { color: #ccc; text-decoration: none; font-size: 12px; }
+  #editor-file-link:hover { color: #4ec9b0; text-decoration: underline; }
   #split-btn { margin-left: auto; padding: 3px 10px; background: transparent; color: #888; border: 1px solid #444; border-radius: 3px; cursor: pointer; font-size: 11px; display: none; }
   #split-btn:hover { background: #333; color: #ccc; }
   #split-btn.active { background: #3a3a6a; color: #aaaaff; border-color: #5555aa; }
   #editors-wrap { flex: 1; display: flex; overflow: hidden; }
   #en-panel { flex: 0 0 50%; border-right: 1px solid #333; display: none; flex-direction: column; overflow: hidden; }
-  #en-panel-header { padding: 5px 10px; background: #252526; border-bottom: 1px solid #333; font-size: 11px; color: #666; }
+  #en-panel-header { padding: 5px 10px; background: #252526; border-bottom: 1px solid #333; font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #en-monaco { flex: 1; }
   #monaco { flex: 1; }
   #no-file { flex: 1; display: flex; align-items: center; justify-content: center; color: #555; font-size: 14px; }
@@ -102,6 +111,13 @@
 <body>
 
 <div id="hover-tooltip"></div>
+<div id="ctx-menu">
+  <div class="ctx-item" id="ctx-open">Open</div>
+  <div class="ctx-item" id="ctx-template">Insert Alfred template</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-vscode">Open in VS Code</div>
+</div>
+
 <div id="header">
   <h1>Ren'Py Dispatcher Editor</h1>
   <span id="project-path">loading...</span>
@@ -109,7 +125,8 @@
     <button class="lang-btn active" data-lang="en">EN</button>
     <button class="lang-btn" data-lang="cz">CZ</button>
   </div>
-  <input id="api-key-input" type="password" placeholder="Anthropic API key (optional)" />
+  <input id="api-key-input" type="password" placeholder="Anthropic API key" />
+  <button id="bulk-gen-btn">⟳ Generate All CZ</button>
   <button id="generate-btn">Generate CZ</button>
   <button id="save-btn" disabled>Save</button>
   <span id="save-status"></span>
@@ -142,7 +159,7 @@
 
   <div id="editor-panel">
     <div id="editor-header">
-      <span id="editor-file">—</span>
+      <a id="editor-file-link" href="#" title="Open in VS Code">—</a>
       <span id="editor-label" class="label-badge" style="display:none"></span>
       <button id="split-btn">⧉ Split EN</button>
     </div>
@@ -166,10 +183,14 @@ let currentState = null;
 let currentLang = 'en';
 let config = null;
 let gridData = {};
+let tlEmptyData = {};
 let isDirty = false;
 let splitActive = false;
 let kbdLocIdx = 0;
 let kbdStateIdx = 0;
+let currentFilePath = null;
+let currentFileLine = 0;
+let ctxLoc = null, ctxState = null;
 
 require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
 require(['vs/editor/editor.main'], () => {
@@ -201,10 +222,8 @@ require(['vs/editor/editor.main'], () => {
     triggerCharacters: [],
     provideCompletionItems: (model, position) => {
       const word = model.getWordUntilPosition(position);
-      const range = {
-        startLineNumber: position.lineNumber, endLineNumber: position.lineNumber,
-        startColumn: word.startColumn, endColumn: word.endColumn,
-      };
+      const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber,
+        startColumn: word.startColumn, endColumn: word.endColumn };
       const S = monaco.languages.CompletionItemKind.Snippet;
       const I = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
       return { suggestions: [
@@ -253,12 +272,14 @@ require(['vs/editor/editor.main'], () => {
   init();
 });
 
+// ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   const cfgRes = await fetch('/api/config').then(r => r.json());
   config = cfgRes.config;
   document.getElementById('project-path').textContent = cfgRes.projectPath;
   await refreshGrid();
   loadStats();
+  loadTlEmpty();
 
   const evtSource = new EventSource('/api/watch');
   evtSource.onmessage = async e => {
@@ -266,12 +287,13 @@ async function init() {
     invalidateHoverCache(location);
     await refreshGrid();
     loadStats();
-    if (!isDirty && currentLocation === location && currentState) {
+    loadTlEmpty();
+    if (!isDirty && currentLocation === location && currentState)
       await openLabel(currentLocation, currentState);
-    }
   };
 }
 
+// ── Grid ──────────────────────────────────────────────────────────────────────
 async function refreshGrid() {
   gridData = await fetch('/api/status').then(r => r.json());
   renderGrid();
@@ -282,10 +304,7 @@ function renderProgress() {
   if (!config) return;
   let total = 0, written = 0;
   for (const loc of config.locations)
-    for (const state of config.states) {
-      total++;
-      if ((gridData[loc]?.[state]) === 'written') written++;
-    }
+    for (const state of config.states) { total++; if (gridData[loc]?.[state] === 'written') written++; }
   const pct = total ? Math.round(written / total * 100) : 0;
   document.getElementById('progress-fill').style.width = pct + '%';
   document.getElementById('progress-label').textContent = `${written}/${total} written`;
@@ -294,11 +313,16 @@ function renderProgress() {
 async function loadStats() {
   const s = await fetch('/api/stats').then(r => r.json());
   const bar = document.getElementById('stats-bar');
-  const chars = Object.entries(s.byChar).sort((a,b) => b[1]-a[1]);
+  const chars = Object.entries(s.byChar).sort((a, b) => b[1] - a[1]);
   bar.innerHTML = chars.map(([who, n]) => {
     const cls = who === 'a' ? 'stat-a' : who === 'l' ? 'stat-l' : 'stat-n';
     return `<span class="${cls}"><b>${who}</b>: ${n}</span>`;
   }).join(' ');
+}
+
+async function loadTlEmpty() {
+  tlEmptyData = await fetch('/api/tl-empty').then(r => r.json());
+  renderGrid();
 }
 
 function renderGrid() {
@@ -323,11 +347,19 @@ function renderGrid() {
       const cell = document.createElement('div');
       cell.className = `cell ${status}`;
       cell.textContent = status === 'written' ? '✓' : status === 'stub' ? '~' : '✗';
-      cell.dataset.li = li;
-      cell.dataset.si = si;
       if (loc === currentLocation && state === currentState) cell.classList.add('active');
       if (li === kbdLocIdx && si === kbdStateIdx) cell.classList.add('kbd-focus');
+
+      const empty = tlEmptyData[loc]?.[state] || 0;
+      if (empty > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'empty-badge';
+        badge.textContent = empty;
+        cell.appendChild(badge);
+      }
+
       cell.addEventListener('click', () => { kbdLocIdx = li; kbdStateIdx = si; openLabel(loc, state); });
+      cell.addEventListener('contextmenu', e => showCtxMenu(e, loc, state, li, si));
       attachHover(cell, loc, state);
       td.appendChild(cell);
       tr.appendChild(td);
@@ -336,6 +368,7 @@ function renderGrid() {
   });
 }
 
+// ── Open label ────────────────────────────────────────────────────────────────
 async function openLabel(location, state) {
   if (isDirty && currentLocation) await saveFile(currentLocation, false);
 
@@ -354,7 +387,8 @@ async function openLabel(location, state) {
 
   const isCz = currentLang === 'cz';
   const fileRes = await fetch(isCz ? `/api/tl-file/${location}` : `/api/file/${location}`).then(r => r.json());
-  document.getElementById('editor-file').textContent = fileRes.path;
+  currentFilePath = fileRes.path;
+  updateVsCodeLink();
 
   const tlWarning = document.getElementById('tl-warning');
   if (isCz && fileRes.content === null) {
@@ -381,6 +415,8 @@ async function openLabel(location, state) {
 
   const lineEndpoint = isCz ? `/api/tl-label-line/${location}/${state}` : `/api/label-line/${location}/${state}`;
   const lineRes = await fetch(lineEndpoint).then(r => r.json());
+  currentFileLine = lineRes.line;
+  updateVsCodeLink();
   if (lineRes.line > 0) {
     editor.revealLineInCenter(lineRes.line);
     editor.setPosition({ lineNumber: lineRes.line, column: 1 });
@@ -398,6 +434,7 @@ async function loadEnPanel(location) {
   }
 }
 
+// ── Save ──────────────────────────────────────────────────────────────────────
 async function saveFile(location, updateStatus = true) {
   const content = editor.getValue();
   const endpoint = currentLang === 'cz' ? `/api/tl-file/${location}` : `/api/file/${location}`;
@@ -414,22 +451,34 @@ async function saveFile(location, updateStatus = true) {
   }
   await refreshGrid();
   loadStats();
+  loadTlEmpty();
 }
 
 document.getElementById('save-btn').addEventListener('click', () => {
   if (currentLocation) saveFile(currentLocation);
 });
 
+// ── Lang toggle ───────────────────────────────────────────────────────────────
 document.querySelectorAll('.lang-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const lang = btn.dataset.lang;
     if (lang === currentLang) return;
     currentLang = lang;
     document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+    updateBulkGenBtn();
     if (currentLocation && currentState) await openLabel(currentLocation, currentState);
     else { updateGenerateBtn(); updateSplitBtn(); }
   });
 });
+
+// ── VS Code link ──────────────────────────────────────────────────────────────
+function updateVsCodeLink() {
+  const link = document.getElementById('editor-file-link');
+  if (!currentFilePath) return;
+  link.textContent = currentFilePath;
+  const p = currentFilePath.replace(/\\/g, '/');
+  link.href = currentFileLine > 0 ? `vscode://file/${p}:${currentFileLine}` : `vscode://file/${p}`;
+}
 
 // ── Split view ────────────────────────────────────────────────────────────────
 function updateSplitBtn() {
@@ -440,27 +489,23 @@ function updateSplitBtn() {
 
 document.getElementById('split-btn').addEventListener('click', async () => {
   splitActive = !splitActive;
-  const enPanel = document.getElementById('en-panel');
-  enPanel.style.display = splitActive ? 'flex' : 'none';
+  document.getElementById('en-panel').style.display = splitActive ? 'flex' : 'none';
   document.getElementById('split-btn').classList.toggle('active', splitActive);
   if (splitActive && currentLocation) await loadEnPanel(currentLocation);
 });
 
-// ── Generate CZ ───────────────────────────────────────────────────────────────
+// ── Generate CZ (single) ──────────────────────────────────────────────────────
 function updateGenerateBtn() {
-  const btn = document.getElementById('generate-btn');
-  const keyInput = document.getElementById('api-key-input');
   const show = currentLang === 'cz' && !!currentLocation;
-  btn.style.display = show ? 'inline-block' : 'none';
-  keyInput.style.display = show ? 'inline-block' : 'none';
+  document.getElementById('generate-btn').style.display = show ? 'inline-block' : 'none';
+  document.getElementById('api-key-input').style.display = (currentLang === 'cz') ? 'inline-block' : 'none';
 }
 
 document.getElementById('generate-btn').addEventListener('click', async () => {
   if (!currentLocation) return;
   const btn = document.getElementById('generate-btn');
   const apiKey = document.getElementById('api-key-input').value.trim();
-  btn.disabled = true;
-  btn.textContent = 'Generating...';
+  btn.disabled = true; btn.textContent = 'Generating...';
   document.getElementById('save-status').textContent = '⟳ translating...';
   try {
     const res = await fetch(`/api/generate-tl/${currentLocation}`, {
@@ -481,9 +526,123 @@ document.getElementById('generate-btn').addEventListener('click', async () => {
   } catch (e) {
     document.getElementById('save-status').textContent = '✗ ' + e.message;
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Generate CZ';
+    btn.disabled = false; btn.textContent = 'Generate CZ';
   }
+});
+
+// ── Generate All CZ ───────────────────────────────────────────────────────────
+function updateBulkGenBtn() {
+  document.getElementById('bulk-gen-btn').style.display = currentLang === 'cz' ? 'inline-block' : 'none';
+  document.getElementById('api-key-input').style.display = currentLang === 'cz' ? 'inline-block' : 'none';
+}
+
+document.getElementById('bulk-gen-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('bulk-gen-btn');
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  btn.disabled = true;
+  const locs = config.locations;
+  let ok = 0, skipped = 0;
+
+  for (let i = 0; i < locs.length; i++) {
+    const loc = locs[i];
+    btn.textContent = `Generating ${i + 1}/${locs.length}…`;
+    document.getElementById('save-status').textContent = `⟳ ${loc}…`;
+    try {
+      const res = await fetch(`/api/generate-tl/${loc}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: apiKey || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.empty) { skipped++; continue; }
+      await fetch(`/api/tl-file/${loc}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: data.content }),
+      });
+      ok++;
+    } catch (e) {
+      skipped++;
+      console.error(`generate-tl ${loc}:`, e.message);
+    }
+  }
+
+  btn.disabled = false; btn.textContent = '⟳ Generate All CZ';
+  document.getElementById('save-status').textContent = `✓ ${ok} generated, ${skipped} skipped`;
+  setTimeout(() => document.getElementById('save-status').textContent = '', 4000);
+  await refreshGrid();
+  loadTlEmpty();
+  // reload current file if open
+  if (currentLocation && currentState) await openLabel(currentLocation, currentState);
+});
+
+// ── Context menu ──────────────────────────────────────────────────────────────
+const ctxMenu = document.getElementById('ctx-menu');
+
+function showCtxMenu(e, loc, state, li, si) {
+  e.preventDefault();
+  ctxLoc = loc; ctxState = state;
+  kbdLocIdx = li; kbdStateIdx = si;
+  ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
+  ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 120) + 'px';
+  ctxMenu.style.display = 'block';
+}
+
+document.addEventListener('click', () => ctxMenu.style.display = 'none');
+document.addEventListener('contextmenu', e => {
+  if (!e.target.closest('.cell')) ctxMenu.style.display = 'none';
+});
+
+document.getElementById('ctx-open').addEventListener('click', () => {
+  if (ctxLoc) openLabel(ctxLoc, ctxState);
+});
+
+document.getElementById('ctx-vscode').addEventListener('click', () => {
+  if (!ctxLoc) return;
+  fetch(`/api/file/${ctxLoc}`).then(r => r.json()).then(data => {
+    const p = data.path.replace(/\\/g, '/');
+    window.location.href = `vscode://file/${p}`;
+  });
+});
+
+document.getElementById('ctx-template').addEventListener('click', async () => {
+  if (!ctxLoc) return;
+  // Only works in EN mode
+  if (currentLang !== 'en') {
+    document.getElementById('save-status').textContent = '⚠ Switch to EN to insert template';
+    setTimeout(() => document.getElementById('save-status').textContent = '', 2500);
+    return;
+  }
+  await openLabel(ctxLoc, ctxState);
+
+  const labelName = config.labelPattern.replace('{location}', ctxLoc).replace('{state}', ctxState);
+  const alfExpr = (ctxState === 'naked' || ctxState === 'towel') ? 'surprised' : 'neutral';
+  const template =
+    `    show alfred ${alfExpr} at right with dissolve\n` +
+    `    a "..."\n` +
+    `    menu:\n` +
+    `        "Option A":\n` +
+    `            l "..."\n` +
+    `        "Option B":\n` +
+    `            l "..."\n` +
+    `    hide alfred with dissolve\n` +
+    `    return\n`;
+
+  const model = editor.getModel();
+  const lines = model.getLinesContent();
+  const labelLine = lines.findIndex(l => l.trim() === `label ${labelName}:`) + 1; // 1-based
+  if (labelLine === 0) return;
+
+  let endLine = labelLine + 1;
+  while (endLine <= lines.length && !lines[endLine - 1].match(/^label\s+/)) endLine++;
+
+  editor.executeEdits('template', [{
+    range: new monaco.Range(labelLine + 1, 1, endLine, 1),
+    text: template,
+  }]);
+  editor.revealLineInCenter(labelLine);
+  isDirty = true;
+  document.getElementById('save-btn').disabled = false;
+  document.getElementById('save-status').textContent = '● unsaved';
 });
 
 // ── Hover preview ─────────────────────────────────────────────────────────────
@@ -504,10 +663,8 @@ function showTooltip(x, y, lines) {
     }).join('');
   }
   const tw = 400, th = tooltip.offsetHeight || 120;
-  const left = Math.min(x + 14, window.innerWidth - tw - 8);
-  const top = y + 14 + th > window.innerHeight ? y - th - 8 : y + 14;
-  tooltip.style.left = left + 'px';
-  tooltip.style.top = top + 'px';
+  tooltip.style.left = Math.min(x + 14, window.innerWidth - tw - 8) + 'px';
+  tooltip.style.top = (y + 14 + th > window.innerHeight ? y - th - 8 : y + 14) + 'px';
   tooltip.style.display = 'block';
 }
 
@@ -525,10 +682,8 @@ function attachHover(cell, loc, state) {
   cell.addEventListener('mousemove', e => {
     if (tooltip.style.display === 'block') {
       const tw = 400, th = tooltip.offsetHeight || 120;
-      const left = Math.min(e.clientX + 14, window.innerWidth - tw - 8);
-      const top = e.clientY + 14 + th > window.innerHeight ? e.clientY - th - 8 : e.clientY + 14;
-      tooltip.style.left = left + 'px';
-      tooltip.style.top = top + 'px';
+      tooltip.style.left = Math.min(e.clientX + 14, window.innerWidth - tw - 8) + 'px';
+      tooltip.style.top = (e.clientY + 14 + th > window.innerHeight ? e.clientY - th - 8 : e.clientY + 14) + 'px';
     }
   });
   cell.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); tooltip.style.display = 'none'; });
@@ -538,28 +693,18 @@ function invalidateHoverCache(location) {
   Object.keys(hoverCache).filter(k => k.startsWith(location + '/')).forEach(k => delete hoverCache[k]);
 }
 
-// ── Keyboard navigation ───────────────────────────────────────────────────────
+// ── Keyboard nav ──────────────────────────────────────────────────────────────
 document.getElementById('grid-scroll').addEventListener('keydown', e => {
   if (!config) return;
-  const maxLi = config.locations.length - 1;
-  const maxSi = config.states.length - 1;
+  const maxLi = config.locations.length - 1, maxSi = config.states.length - 1;
   let moved = false;
-
-  if (e.key === 'ArrowRight')  { kbdLocIdx   = Math.min(kbdLocIdx + 1, maxLi); moved = true; }
-  if (e.key === 'ArrowLeft')   { kbdLocIdx   = Math.max(kbdLocIdx - 1, 0);     moved = true; }
+  if (e.key === 'ArrowRight')  { kbdLocIdx   = Math.min(kbdLocIdx + 1, maxLi);   moved = true; }
+  if (e.key === 'ArrowLeft')   { kbdLocIdx   = Math.max(kbdLocIdx - 1, 0);       moved = true; }
   if (e.key === 'ArrowDown')   { kbdStateIdx = Math.min(kbdStateIdx + 1, maxSi); moved = true; }
-  if (e.key === 'ArrowUp')     { kbdStateIdx = Math.max(kbdStateIdx - 1, 0);   moved = true; }
-  if (e.key === 'Enter') {
-    openLabel(config.locations[kbdLocIdx], config.states[kbdStateIdx]);
-    moved = true;
-  }
-  if (moved) { e.preventDefault(); renderGrid(); scrollKbdCellIntoView(); }
+  if (e.key === 'ArrowUp')     { kbdStateIdx = Math.max(kbdStateIdx - 1, 0);     moved = true; }
+  if (e.key === 'Enter')       { openLabel(config.locations[kbdLocIdx], config.states[kbdStateIdx]); moved = true; }
+  if (moved) { e.preventDefault(); renderGrid(); document.querySelector('.cell.kbd-focus')?.scrollIntoView({ block: 'nearest' }); }
 });
-
-function scrollKbdCellIntoView() {
-  const cell = document.querySelector('.cell.kbd-focus');
-  if (cell) cell.scrollIntoView({ block: 'nearest' });
-}
 
 // ── Search ────────────────────────────────────────────────────────────────────
 let searchTimer = null;
@@ -572,11 +717,9 @@ searchInput.addEventListener('input', () => {
   if (q.length < 2) { searchResults.style.display = 'none'; return; }
   searchTimer = setTimeout(() => runSearch(q), 300);
 });
-
 searchInput.addEventListener('keydown', e => {
   if (e.key === 'Escape') { searchResults.style.display = 'none'; searchInput.value = ''; }
 });
-
 document.addEventListener('click', e => {
   if (!searchInput.contains(e.target) && !searchResults.contains(e.target))
     searchResults.style.display = 'none';
@@ -592,27 +735,22 @@ async function runSearch(q) {
   const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
   searchResults.innerHTML = data.map(item => {
     const hi = item.text.replace(re, m => `<em>${m}</em>`);
-    const li = config.locations.indexOf(item.location);
-    const si = config.states.indexOf(item.label.split('_').pop());
-    return `<div class="search-item" data-loc="${item.location}" data-state="${item.label}" data-li="${li}" data-si="${si}">
+    const state = config.states.find(s => item.label.endsWith('_' + s)) || '';
+    return `<div class="search-item" data-loc="${item.location}" data-state="${state}">
       <div class="search-item-label">${item.label} :${item.line}</div>
       <div class="search-item-text">${hi}</div>
     </div>`;
-  }).join('') + (data.length >= 60 ? '<div id="search-count">Showing first 60 results</div>' : '');
+  }).join('') + (data.length >= 60 ? '<div id="search-count">First 60 results</div>' : '');
   searchResults.style.display = 'block';
 
   searchResults.querySelectorAll('.search-item').forEach(el => {
     el.addEventListener('click', () => {
-      const loc = el.dataset.loc;
-      const li = parseInt(el.dataset.li);
-      const si = parseInt(el.dataset.si);
-      // resolve state from label name: last segment after location
-      const labelParts = el.dataset.state.split('_');
-      const state = config.states.find(s => el.dataset.state.endsWith('_' + s)) || labelParts[labelParts.length - 1];
+      const loc = el.dataset.loc, state = el.dataset.state;
+      const li = config.locations.indexOf(loc), si = config.states.indexOf(state);
       if (li >= 0) kbdLocIdx = li;
       if (si >= 0) kbdStateIdx = si;
       searchResults.style.display = 'none';
-      openLabel(loc, state);
+      if (loc && state) openLabel(loc, state);
     });
   });
 }

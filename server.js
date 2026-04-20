@@ -405,6 +405,32 @@ app.post('/api/generate-tl/:location', async (req, res) => {
     }
 });
 
+// ── TL empty count ────────────────────────────────────────────────────────────
+
+app.get('/api/tl-empty', (req, res) => {
+    const result = {};
+    for (const loc of config.locations) {
+        result[loc] = {};
+        const tlPath = resolveTlFilePath(loc);
+        if (!fs.existsSync(tlPath)) {
+            for (const state of config.states) result[loc][state] = 0;
+            continue;
+        }
+        const content = fs.readFileSync(tlPath, 'utf-8');
+        for (const state of config.states) {
+            const labelName = buildLabelName(loc, state);
+            const re = new RegExp(`translate czech ${labelName}_[a-f0-9_]+:[\\s\\S]*?(?=translate czech |$)`, 'g');
+            let empty = 0;
+            let m;
+            while ((m = re.exec(content)) !== null) {
+                if (m[0].match(/^\s+(a|l|narrator)\s+""\s*$/m)) empty++;
+            }
+            result[loc][state] = empty;
+        }
+    }
+    res.json(result);
+});
+
 // ── Stats + Search ───────────────────────────────────────────────────────────
 
 app.get('/api/stats', (req, res) => {
