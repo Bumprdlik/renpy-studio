@@ -289,8 +289,13 @@ function lintLabel(content, labelName) {
         const t = line.trim();
         if (!t || t.startsWith('#')) continue;
         if (t === 'return') hasReturn = true;
-        if (t.match(new RegExp(`^show ${spriteChar}\\b`))) showCount++;
-        if (t.match(new RegExp(`^hide ${spriteChar}\\b`))) hideCount++;
+        // Only count show/hide at top-level indent (≤8 spaces) — inside menu branches
+        // are mutually exclusive so counting them together gives false positives
+        const indent = line.match(/^(\s*)/)[1].length;
+        if (indent <= 8) {
+            if (t.match(new RegExp(`^show ${spriteChar}\\b`))) showCount++;
+            if (t.match(new RegExp(`^hide ${spriteChar}\\b`))) hideCount++;
+        }
     }
 
     if (!hasReturn) issues.push('missing return');
