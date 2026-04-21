@@ -269,21 +269,32 @@ function lintLabel(content, labelName) {
     const startIdx = lines.findIndex(l => l.trim() === `label ${labelName}:`);
     if (startIdx === -1) return [];
 
+    // Skip consecutive fallthrough labels (same logic as getLabelStatus)
+    let contentStart = startIdx + 1;
+    while (
+        contentStart < lines.length &&
+        lines[contentStart].trim().match(/^label\s+\w[\w_]*:/)
+    ) {
+        contentStart++;
+    }
+
     const issues = [];
     let showCount = 0, hideCount = 0, hasReturn = false;
+    // Detect the sprite character name from labelPattern (e.g. "winston" from "winston_{location}_{state}")
+    const spriteChar = config.labelPattern.split('_')[0];
 
-    for (let i = startIdx + 1; i < lines.length; i++) {
+    for (let i = contentStart; i < lines.length; i++) {
         const line = lines[i];
-        if (line.match(/^label\s+/) && i > startIdx + 1) break;
+        if (line.match(/^label\s+/)) break;
         const t = line.trim();
         if (!t || t.startsWith('#')) continue;
         if (t === 'return') hasReturn = true;
-        if (t.match(/^show alfred\b/)) showCount++;
-        if (t.match(/^hide alfred\b/)) hideCount++;
+        if (t.match(new RegExp(`^show ${spriteChar}\\b`))) showCount++;
+        if (t.match(new RegExp(`^hide ${spriteChar}\\b`))) hideCount++;
     }
 
     if (!hasReturn) issues.push('missing return');
-    if (showCount > hideCount) issues.push(`alfred shown ${showCount}× but hidden ${hideCount}×`);
+    if (showCount > hideCount) issues.push(`${spriteChar} shown ${showCount}× but hidden ${hideCount}×`);
     return issues;
 }
 
