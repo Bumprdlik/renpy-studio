@@ -9,6 +9,11 @@
   "characters": ["a", "l", "narrator"],
   "renpyExe": "C:/path/to/renpy-sdk/renpy.exe",
   "anthropicApiKey": "",
+  "characterVoices": {
+    "a": "formal butler, polite, slightly stiff",
+    "l": "first-person inner thoughts, sardonic, self-aware",
+    "narrator": "neutral scene description, concise"
+  },
   "locationDescs": {
     "bedroom": "bedroom — most private space, character dresses/undresses here",
     "bathroom": "bathroom — cold tiles, intimate, character after or before shower",

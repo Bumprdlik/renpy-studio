@@ -322,12 +322,20 @@ async function translateWithClaude(blocks, menuStrings, targetLang, apiKey) {
         ? `\nUse these established translations for consistency:\n${memory.slice(0, 40).map(m => `  ${m.who} "${m.en}" → "${m.cz}"`).join('\n')}\n`
         : '';
 
+    const defaultVoices = {
+        a: 'formal English butler, polite, slightly archaic phrasing',
+        l: 'first-person inner thoughts, slightly sardonic and self-aware',
+        narrator: 'neutral scene description, concise',
+    };
+    const voices = config.characterVoices || defaultVoices;
+    const charDesc = (config.characters || ['a', 'l', 'narrator'])
+        .map(c => `- "${c}" = ${voices[c] || defaultVoices[c] || 'character'}`)
+        .join('\n');
+
     const prompt = `Translate the following Ren'Py visual novel strings from English to ${langName}.
 
 Character voices:
-- "a" = Alfred, formal English butler, polite, slightly archaic phrasing
-- "l" = Lara, first-person inner thoughts, slightly sardonic and self-aware
-- "narrator" = neutral scene description, concise
+${charDesc}
 - "menu" = player choice button labels, keep short
 ${memoryHint}
 Return ONLY a valid JSON array with one object per input item, in the same order, each with a single "t" field containing the translation. No markdown, no explanation.
@@ -586,11 +594,22 @@ app.post('/api/draft-en/:location/:state', async (req, res) => {
         const Anthropic = require('@anthropic-ai/sdk');
         const client = new Anthropic({ apiKey });
 
-        const prompt = `You are writing dialogue for a Ren'Py visual novel called "Lara".
+        const characters = config.characters || ['a', 'l', 'narrator'];
+        const defaultVoices = {
+            a: 'formal butler, polite, slightly stiff',
+            l: 'first-person inner thoughts, sardonic, self-aware',
+            narrator: 'neutral scene description, concise',
+        };
+        const voices = config.characterVoices || defaultVoices;
+        const charLines = characters
+            .filter(c => c !== 'narrator')
+            .map(c => `- ${c}: ${voices[c] || defaultVoices[c] || 'character'}`)
+            .join('\n');
+
+        const prompt = `You are writing dialogue for a Ren'Py visual novel.
 
 Characters:
-- Alfred (variable: a): formal English butler, polite, slightly stiff, proper British mannerisms, secretly fascinated by Lara
-- Lara (variable: l): first-person inner thoughts/narration, slightly sardonic, self-aware, bold
+${charLines}
 
 Scene: ${locationDescs[location] || location}
 Lara's current state: ${stateDescs[state] || state}

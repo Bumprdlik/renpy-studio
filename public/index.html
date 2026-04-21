@@ -78,6 +78,12 @@
   #progress-fill { height: 100%; background: #2d6e2d; border-radius: 3px; transition: width 0.3s; }
   #progress-label { font-size: 11px; color: #888; white-space: nowrap; }
 
+  /* Grid filter */
+  #filter-bar { padding: 4px 10px; border-bottom: 1px solid #2a2a2a; display: flex; gap: 4px; }
+  .filter-btn { padding: 2px 9px; border: 1px solid #3a3a3a; border-radius: 3px; background: transparent; color: #666; font-size: 11px; cursor: pointer; }
+  .filter-btn:hover { background: #2d2d2d; color: #aaa; }
+  .filter-btn.active { background: #0e639c; color: #fff; border-color: #0e639c; }
+
   /* Search */
   #search-wrap { padding: 6px 10px; border-bottom: 1px solid #2a2a2a; position: relative; }
   #search-input { width: 100%; padding: 5px 8px; background: #1a1a1a; color: #ccc; border: 1px solid #3a3a3a; border-radius: 3px; font-size: 12px; outline: none; }
@@ -214,6 +220,14 @@
         <div id="progress-track"><div id="progress-fill" style="width:0%"></div></div>
         <span id="progress-label">—</span>
       </div>
+    </div>
+    <div id="filter-bar">
+      <button class="filter-btn active" data-filter="all">Vše</button>
+      <button class="filter-btn" data-filter="missing">✗</button>
+      <button class="filter-btn" data-filter="stub">~</button>
+      <button class="filter-btn" data-filter="written">✓</button>
+      <button class="filter-btn" data-filter="lint">⚠</button>
+      <button class="filter-btn" data-filter="empty">🟠</button>
     </div>
     <div id="search-wrap">
       <input id="search-input" placeholder="Search dialogue… (min 2 chars)" autocomplete="off" />
@@ -383,6 +397,24 @@ async function init() {
   };
 }
 
+// ── Grid filter ──────────────────────────────────────────────────────────────
+let gridFilter = 'all';
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    gridFilter = btn.dataset.filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === gridFilter));
+    renderGrid();
+  });
+});
+
+function cellMatchesFilter(loc, state, status) {
+  if (gridFilter === 'all') return true;
+  if (gridFilter === 'lint') return (lintData[loc]?.[state] || []).length > 0;
+  if (gridFilter === 'empty') return (tlEmptyData[loc]?.[state] || 0) > 0;
+  return status === gridFilter;
+}
+
 // ── Grid ──────────────────────────────────────────────────────────────────────
 async function refreshGrid() {
   gridData = await fetch('/api/status').then(r => r.json());
@@ -444,6 +476,7 @@ function renderGrid() {
       cell.className = `cell ${status}`;
       const lineCount = lineCountData[loc]?.[state] || 0;
       cell.textContent = status === 'written' ? `✓ ${lineCount}` : status === 'stub' ? '~' : '✗';
+      if (!cellMatchesFilter(loc, state, status)) cell.style.opacity = '0.18';
       if (loc === currentLocation && state === currentState) cell.classList.add('active');
       if (li === kbdLocIdx && si === kbdStateIdx) cell.classList.add('kbd-focus');
 
@@ -1191,11 +1224,53 @@ document.getElementById('import-csv-input').addEventListener('change', async e =
   }
 });
 
-// ── Ctrl+S ────────────────────────────────────────────────────────────────────
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
 window.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const ctrl = e.ctrlKey || e.metaKey;
+
+  // Ctrl+S — save
+  if (ctrl && e.key === 's') {
     e.preventDefault();
     if (currentLocation && isDirty) saveFile(currentLocation);
+    return;
+  }
+
+  // Ctrl+D — Draft EN (EN mode only)
+  if (ctrl && e.key === 'd') {
+    e.preventDefault();
+    const btn = document.getElementById('draft-btn');
+    if (btn.style.display !== 'none' && !btn.disabled) btn.click();
+    return;
+  }
+
+  // Ctrl+R — open/close Revise bar (EN mode only)
+  if (ctrl && e.key === 'r') {
+    e.preventDefault();
+    const btn = document.getElementById('revise-btn');
+    if (btn.style.display !== 'none') btn.click();
+    return;
+  }
+
+  // Ctrl+G — switch to CZ and Generate (or back to EN)
+  if (ctrl && e.key === 'g') {
+    e.preventDefault();
+    const targetLang = currentLang === 'en' ? 'cz' : 'en';
+    document.querySelector(`.lang-btn[data-lang="${targetLang}"]`).click();
+    if (targetLang === 'cz' && currentLocation) {
+      setTimeout(() => {
+        const btn = document.getElementById('generate-btn');
+        if (btn.style.display !== 'none' && !btn.disabled) btn.click();
+      }, 50);
+    }
+    return;
+  }
+
+  // Ctrl+L — Launch Ren'Py
+  if (ctrl && e.key === 'l') {
+    e.preventDefault();
+    document.getElementById('launch-btn').click();
+    return;
   }
 });
 </script>
