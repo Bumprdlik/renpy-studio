@@ -20,6 +20,8 @@ if (!fs.existsSync(configPath)) {
 }
 
 const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+config.tlLang = config.tlLang || (config.tlDir || 'tl/czech').split('/').pop();
+config.tlLangLabel = config.tlLangLabel || config.tlLang.slice(0, 2).toUpperCase();
 const gameDir = path.join(projectPath, config.gameDir);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -61,8 +63,7 @@ function buildLabelName(location, state) {
 }
 
 function resolveTlFilePath(location) {
-    const tlDir = config.tlDir || 'tl/czech';
-    return path.join(gameDir, tlDir, config.filePattern.replace('{location}', location));
+    return path.join(gameDir, config.tlDir || `tl/${config.tlLang}`, config.filePattern.replace('{location}', location));
 }
 
 // ── Translation helpers ───────────────────────────────────────────────────────
@@ -320,9 +321,6 @@ async function translateWithClaude(blocks, menuStrings, targetLang, apiKey) {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
 
-    const tlDir = config.tlDir || 'tl/czech';
-    const langName = tlDir.split('/').pop();
-
     const items = [
         ...blocks.map(b => ({ who: b.who || 'narrator', text: b.parsedWhat })),
         ...menuStrings.map(m => ({ who: 'menu', text: m.text })),
@@ -345,7 +343,7 @@ async function translateWithClaude(blocks, menuStrings, targetLang, apiKey) {
         .map(c => `- "${c}" = ${voices[c] || defaultVoices[c] || 'character'}`)
         .join('\n');
 
-    const prompt = `Translate the following Ren'Py visual novel strings from English to ${langName}.
+    const prompt = `Translate the following Ren'Py visual novel strings from English to ${config.tlLang}.
 
 Character voices:
 ${charDesc}
@@ -388,13 +386,13 @@ function buildTlContent(blocks, menuStrings, dialogueTranslations, menuTranslati
         const translLine = who ? `${who} "${translationEncoded}"` : `"${translationEncoded}"`;
 
         out += `# game/${relPath}:${sourceLine}\n`;
-        out += `translate czech ${id}:\n\n`;
+        out += `translate ${config.tlLang} ${id}:\n\n`;
         out += `    # ${origLine}\n`;
         out += `    ${translLine}\n\n`;
     }
 
     if (menuStrings.length > 0) {
-        out += `translate czech strings:\n\n`;
+        out += `translate ${config.tlLang} strings:\n\n`;
         for (let i = 0; i < menuStrings.length; i++) {
             const { text, sourceLine } = menuStrings[i];
             const translation = menuTranslations[i] || '';
@@ -460,7 +458,7 @@ app.get('/api/tl-label-line/:location/:state', (req, res) => {
 
     const labelName = buildLabelName(location, state);
     const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
-    const idx = lines.findIndex(l => l.trim().startsWith(`translate czech ${labelName}_`));
+    const idx = lines.findIndex(l => l.trim().startsWith(`translate ${config.tlLang} ${labelName}_`));
     res.json({ line: idx + 1 });
 });
 
@@ -543,7 +541,7 @@ app.post('/api/generate-tl/:location', async (req, res) => {
         }
 
         const { dialogueTranslations, menuTranslations } =
-            await translateWithClaude(blocks, menuStrings, config.tlDir || 'tl/czech', apiKey);
+            await translateWithClaude(blocks, menuStrings, config.tlLang, apiKey);
 
         const tlContent = buildTlContent(
             blocks, menuStrings, dialogueTranslations, menuTranslations, relPath
@@ -747,9 +745,9 @@ app.get('/api/export-csv', (req, res) => {
 
             let cz = '';
             if (tlContent) {
-                const blockIdx = tlContent.indexOf(`translate czech ${id}:`);
+                const blockIdx = tlContent.indexOf(`translate ${config.tlLang} ${id}:`);
                 if (blockIdx !== -1) {
-                    const nextIdx = tlContent.indexOf('\ntranslate czech ', blockIdx + 1);
+                    const nextIdx = tlContent.indexOf(`\ntranslate ${config.tlLang} `, blockIdx + 1);
                     const slice = nextIdx === -1 ? tlContent.slice(blockIdx) : tlContent.slice(blockIdx, nextIdx);
                     const charRe = who
                         ? new RegExp(`^\\s+${who}\\s+"((?:[^"\\\\]|\\\\.)*)"`, 'm')
@@ -821,9 +819,9 @@ app.post('/api/import-csv', (req, res) => {
                     );
                     if (tlContent !== before) updated++;
                 } else {
-                    const blockIdx = tlContent.indexOf(`translate czech ${id}:`);
+                    const blockIdx = tlContent.indexOf(`translate ${config.tlLang} ${id}:`);
                     if (blockIdx === -1) continue;
-                    const nextIdx = tlContent.indexOf('\ntranslate czech ', blockIdx + 1);
+                    const nextIdx = tlContent.indexOf(`\ntranslate ${config.tlLang} `, blockIdx + 1);
                     const blockEnd = nextIdx === -1 ? tlContent.length : nextIdx;
                     const block = tlContent.slice(blockIdx, blockEnd);
                     const whoStr = who && who !== 'narrator' ? who : null;
@@ -863,7 +861,7 @@ app.get('/api/tl-empty', (req, res) => {
         const content = fs.readFileSync(tlPath, 'utf-8');
         for (const state of config.states) {
             const labelName = buildLabelName(loc, state);
-            const re = new RegExp(`translate czech ${labelName}_[a-f0-9_]+:[\\s\\S]*?(?=translate czech |$)`, 'g');
+            const re = new RegExp(`translate ${config.tlLang} ${labelName}_[a-f0-9_]+:[\\s\\S]*?(?=translate ${config.tlLang} |$)`, 'g');
             let empty = 0;
             let m;
             while ((m = re.exec(content)) !== null) {
@@ -884,6 +882,103 @@ app.post('/api/launch', (req, res) => {
     const renpyProject = path.dirname(path.join(projectPath, config.gameDir));
     spawn(renpyExe, [renpyProject], { detached: true, stdio: 'ignore' }).unref();
     res.json({ ok: true });
+});
+
+// ── Story Arc ─────────────────────────────────────────────────────────────────
+
+app.post('/api/story-arc', async (req, res) => {
+    try {
+        const { description, apiKey: reqKey } = req.body;
+        const apiKey = reqKey || process.env.ANTHROPIC_API_KEY || config.anthropicApiKey;
+        if (!apiKey) return res.status(400).json({ error: 'No Anthropic API key.' });
+        if (!description) return res.status(400).json({ error: 'description required.' });
+
+        const Anthropic = require('@anthropic-ai/sdk');
+        const client = new Anthropic({ apiKey });
+
+        const voices = config.characterVoices || {};
+        const charDesc = Object.entries(voices).map(([k, v]) => `  ${k}: ${v}`).join('\n');
+
+        const prompt = `You are planning events for a Ren'Py visual novel.
+
+Available locations: ${config.locations.join(', ')}
+Available times: morning, afternoon, evening
+Characters:\n${charDesc || '  (see config)'}
+
+Story arc: ${description}
+
+Generate 4–8 events that form this story arc as a sequence of scenes. Each event is one .rpy file.
+
+Return ONLY a valid JSON array, no markdown, no explanation:
+[
+  {
+    "id": "ev_[snake_case]",
+    "location": "[one of the available locations]",
+    "time": "morning|afternoon|evening",
+    "description": "one sentence — what happens in this scene",
+    "condition": "renpy.store.day == 1",
+    "priority": 10,
+    "repeatable": false
+  }
+]`;
+
+        const response = await client.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
+            messages: [{ role: 'user', content: prompt }],
+        });
+
+        const text = response.content[0].text.trim();
+        const match = text.match(/\[[\s\S]*\]/);
+        if (!match) throw new Error('Claude did not return valid JSON');
+        res.json({ events: JSON.parse(match[0]) });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/create-events', (req, res) => {
+    try {
+        const { events } = req.body;
+        if (!Array.isArray(events) || events.length === 0)
+            return res.status(400).json({ error: 'events array required.' });
+
+        const eventsDir = path.join(projectPath, config.gameDir, 'events');
+        fs.mkdirSync(eventsDir, { recursive: true });
+
+        const created = [], skipped = [];
+        for (const ev of events) {
+            const { id, location, time, description, condition, priority, repeatable } = ev;
+            const filePath = path.join(eventsDir, `${id}.rpy`);
+            if (fs.existsSync(filePath)) { skipped.push(id); continue; }
+
+            const cond = condition || 'True';
+            const prio = priority ?? 10;
+            const rep = repeatable ? 'True' : 'False';
+            const content =
+`init python:
+    register_event("${id}", {
+        "location": "${location}",
+        "time": "${time}",
+        "condition": lambda: ${cond},
+        "priority": ${prio},
+        "repeatable": ${rep},
+    })
+
+label ${id}:
+    scene bg ${location} with dissolve
+    # ${description}
+    # TODO
+    $ seen_events.add("${id}")
+    return
+`;
+            fs.writeFileSync(filePath, content, 'utf-8');
+            created.push(id);
+        }
+        res.json({ ok: true, created, skipped });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // ── Stats + Search ───────────────────────────────────────────────────────────

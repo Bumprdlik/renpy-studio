@@ -65,6 +65,36 @@
   #diff-accept:hover { background: #3a8a3a; }
   #diff-reject { padding: 5px 14px; background: transparent; color: #888; border: 1px solid #444; border-radius: 3px; cursor: pointer; font-size: 13px; }
   #diff-reject:hover { background: #333; color: #ccc; }
+  #arc-btn { padding: 5px 14px; background: #2a1a3a; color: #c8a0f0; border: 1px solid #5a3a8a; border-radius: 3px; cursor: pointer; font-size: 12px; }
+  #arc-btn:hover { background: #4a2a6a; }
+  #arc-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000; display: none; align-items: center; justify-content: center; }
+  #arc-inner { background: #252526; border: 1px solid #444; border-radius: 6px; width: 72vw; max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; }
+  #arc-header { padding: 10px 16px; border-bottom: 1px solid #333; font-size: 13px; color: #c8a0f0; display: flex; align-items: center; gap: 10px; }
+  #arc-header span { flex: 1; }
+  #arc-close { background: transparent; border: none; color: #666; font-size: 16px; cursor: pointer; padding: 0 4px; }
+  #arc-close:hover { color: #ccc; }
+  #arc-input-area { padding: 14px 16px; border-bottom: 1px solid #333; display: flex; gap: 10px; align-items: flex-start; }
+  #arc-desc { flex: 1; padding: 8px 10px; background: #1a1a1a; color: #ccc; border: 1px solid #5a3a8a; border-radius: 3px; font-size: 13px; resize: vertical; min-height: 60px; outline: none; font-family: inherit; }
+  #arc-desc:focus { border-color: #8a5abb; }
+  #arc-desc::placeholder { color: #555; }
+  #arc-generate { padding: 7px 18px; background: #5a3a8a; color: #d8b0f8; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  #arc-generate:hover { background: #7a5aaa; }
+  #arc-generate:disabled { background: #333; color: #666; cursor: default; }
+  #arc-events { flex: 1; overflow-y: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; }
+  #arc-empty { color: #555; font-size: 13px; text-align: center; padding: 40px 0; }
+  .arc-card { background: #1e1e1e; border: 1px solid #3a3a3a; border-radius: 4px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr 1fr 1fr auto; gap: 8px; align-items: center; }
+  .arc-card input { background: #252526; color: #ccc; border: 1px solid #3a3a3a; border-radius: 3px; padding: 3px 7px; font-size: 12px; outline: none; width: 100%; }
+  .arc-card input:focus { border-color: #5a3a8a; }
+  .arc-card-desc { grid-column: 2 / 5; }
+  .arc-card-id { font-size: 11px; color: #569cd6; font-family: monospace; }
+  .arc-card select { background: #252526; color: #ccc; border: 1px solid #3a3a3a; border-radius: 3px; padding: 3px 6px; font-size: 12px; outline: none; }
+  .arc-card-remove { background: transparent; border: none; color: #555; cursor: pointer; font-size: 14px; padding: 0 4px; }
+  .arc-card-remove:hover { color: #c86868; }
+  #arc-footer { padding: 10px 16px; border-top: 1px solid #333; display: flex; align-items: center; gap: 12px; }
+  #arc-create { padding: 6px 20px; background: #2d6e2d; color: #aee8ae; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; }
+  #arc-create:hover { background: #3a8a3a; }
+  #arc-create:disabled { background: #333; color: #666; cursor: default; }
+  #arc-status { font-size: 12px; color: #888; flex: 1; }
 
   /* Layout */
   #main { display: flex; flex: 1; overflow: hidden; }
@@ -183,6 +213,27 @@
     </div>
   </div>
 </div>
+
+<div id="arc-modal">
+  <div id="arc-inner">
+    <div id="arc-header">
+      <span>📖 Story Arc Generator</span>
+      <small style="color:#888;font-size:11px">Claude Sonnet</small>
+      <button id="arc-close">✕</button>
+    </div>
+    <div id="arc-input-area">
+      <textarea id="arc-desc" placeholder="Describe the story arc… e.g. &quot;Lara discovers the garden is overgrown and asks Winston to help restore it over 3 days&quot; (Ctrl+Enter to generate)"></textarea>
+      <button id="arc-generate" title="Generate event list via Claude Sonnet (Ctrl+Enter). Requires API key.">✦ Generate</button>
+    </div>
+    <div id="arc-events">
+      <div id="arc-empty">Describe a story arc above and click Generate</div>
+    </div>
+    <div id="arc-footer">
+      <button id="arc-create" disabled title="Create .rpy files for checked events in the events/ directory. Existing files are skipped.">✚ Create files</button>
+      <span id="arc-status"></span>
+    </div>
+  </div>
+</div>
 <div id="hover-tooltip"></div>
 <div id="ctx-menu">
   <div class="ctx-item" id="ctx-open">Open</div>
@@ -198,16 +249,17 @@
     <button class="lang-btn active" data-lang="en">EN</button>
     <button class="lang-btn" data-lang="cz">CZ</button>
   </div>
-  <input id="api-key-input" type="password" placeholder="Anthropic API key" />
-  <button id="launch-btn">▶ Launch</button>
-  <button id="draft-btn">✦ Draft EN</button>
-  <button id="revise-btn">✎ Revise</button>
-  <button id="bulk-gen-btn">⟳ Generate All CZ</button>
-  <button id="generate-btn">Generate CZ</button>
-  <button id="export-csv-btn">⬇ Export CSV</button>
+  <input id="api-key-input" type="password" placeholder="Anthropic API key" title="Anthropic API key for AI features (Draft EN, Revise, Generate CZ, Arc). Alternatively set ANTHROPIC_API_KEY env var or anthropicApiKey in .dispatcher.json." />
+  <button id="launch-btn" title="Launch Ren'Py with this project (Ctrl+L). Requires renpyExe in .dispatcher.json.">▶ Launch</button>
+  <button id="arc-btn" title="Story Arc Generator — describe a story arc and AI generates a list of events, which you can create as .rpy files in one click.">📖 Arc</button>
+  <button id="draft-btn" title="AI writes English dialogue for the current label (Ctrl+D). Uses characterVoices, locationDescs and stateDescs from config.">✦ Draft EN</button>
+  <button id="revise-btn" title="Rewrite the current label with a one-line instruction — shows a diff modal before applying (Ctrl+R). Ctrl+click multiple cells for batch revise without diff.">✎ Revise</button>
+  <button id="bulk-gen-btn" title="Translate all EN source files to the target language at once via Claude. Results are saved automatically.">⟳ Generate All CZ</button>
+  <button id="generate-btn" title="Translate the current EN file via Claude Haiku (Ctrl+G). Result is loaded into the editor — review and save.">Generate CZ</button>
+  <button id="export-csv-btn" title="Download all EN+CZ strings as CSV. Fill in the CZ column in a spreadsheet editor and import back.">⬇ Export CSV</button>
   <input id="import-csv-input" type="file" accept=".csv" style="display:none" />
-  <button id="import-csv-btn">⬆ Import CSV</button>
-  <button id="save-btn" disabled>Save</button>
+  <button id="import-csv-btn" title="Import filled CZ translations from a CSV file back into the .rpy tl files.">⬆ Import CSV</button>
+  <button id="save-btn" disabled title="Save the current file (Ctrl+S).">Save</button>
   <span id="save-status"></span>
   <span id="tl-warning">⚠ tl file missing — run Generate Translations in Ren'Py Launcher</span>
 </div>
@@ -222,12 +274,12 @@
       </div>
     </div>
     <div id="filter-bar">
-      <button class="filter-btn active" data-filter="all">Vše</button>
-      <button class="filter-btn" data-filter="missing">✗</button>
-      <button class="filter-btn" data-filter="stub">~</button>
-      <button class="filter-btn" data-filter="written">✓</button>
-      <button class="filter-btn" data-filter="lint">⚠</button>
-      <button class="filter-btn" data-filter="empty">🟠</button>
+      <button class="filter-btn active" data-filter="all" title="Show all cells">All</button>
+      <button class="filter-btn" data-filter="missing" title="Missing labels only (✗ — label not found in file)">✗</button>
+      <button class="filter-btn" data-filter="stub" title="Stubs only (~ — label exists but has no dialogue)">~</button>
+      <button class="filter-btn" data-filter="written" title="Written labels only (✓ — contains at least one dialogue line)">✓</button>
+      <button class="filter-btn" data-filter="lint" title="Cells with lint warnings only (⚠ — missing return or sprite never hidden)">⚠</button>
+      <button class="filter-btn" data-filter="empty" title="Cells with untranslated CZ strings only (orange badge)">🟠</button>
     </div>
     <div id="search-wrap">
       <input id="search-input" placeholder="Search dialogue… (min 2 chars)" autocomplete="off" />
@@ -235,7 +287,7 @@
     </div>
     <div id="memory-bar">
       <span id="memory-toggle">🧠 <b id="memory-count">0</b> phrases</span>
-      <button id="memory-learn-btn">Learn from files</button>
+      <button id="memory-learn-btn" title="Scans all tl files and adds translated pairs (EN→CZ) to memory. Memory is injected into translation prompts for consistent tone.">Learn from files</button>
     </div>
     <div id="memory-panel"></div>
     <div id="grid-scroll" tabindex="0">
@@ -253,7 +305,7 @@
     <div id="editor-header">
       <a id="editor-file-link" href="#" title="Open in VS Code">—</a>
       <span id="editor-label" class="label-badge" style="display:none"></span>
-      <button id="split-btn">⧉ Split EN</button>
+      <button id="split-btn" title="Show the EN source file alongside the CZ editor for reference (CZ mode only).">⧉ Split EN</button>
     </div>
     <div id="revise-bar">
       <span style="font-size:12px;color:#b8a0d8;white-space:nowrap">Revision:</span>
@@ -375,6 +427,9 @@ async function init() {
   const cfgRes = await fetch('/api/config').then(r => r.json());
   config = cfgRes.config;
   document.getElementById('project-path').textContent = cfgRes.projectPath;
+  const tll = config.tlLangLabel || 'TL';
+  document.getElementById('generate-btn').textContent = `Generate ${tll}`;
+  document.getElementById('bulk-gen-btn').textContent = `⟳ Generate All ${tll}`;
   await refreshGrid();
   loadStats();
   loadTlEmpty();
@@ -1271,6 +1326,124 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     document.getElementById('launch-btn').click();
     return;
+  }
+});
+
+// ── Story Arc ─────────────────────────────────────────────────────────────────
+let arcEvents = [];
+
+document.getElementById('arc-btn').addEventListener('click', () => {
+  document.getElementById('arc-modal').style.display = 'flex';
+  document.getElementById('arc-desc').focus();
+});
+
+document.getElementById('arc-close').addEventListener('click', () => {
+  document.getElementById('arc-modal').style.display = 'none';
+});
+
+document.getElementById('arc-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('arc-modal'))
+    document.getElementById('arc-modal').style.display = 'none';
+});
+
+document.getElementById('arc-desc').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('arc-generate').click();
+  }
+});
+
+document.getElementById('arc-generate').addEventListener('click', async () => {
+  const desc = document.getElementById('arc-desc').value.trim();
+  if (!desc) return;
+  const btn = document.getElementById('arc-generate');
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  btn.disabled = true; btn.textContent = '⟳ Generating…';
+  document.getElementById('arc-status').textContent = '';
+  try {
+    const res = await fetch('/api/story-arc', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: desc, apiKey: apiKey || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Server error');
+    arcEvents = data.events;
+    renderArcEvents();
+    document.getElementById('arc-create').disabled = arcEvents.length === 0;
+    document.getElementById('arc-status').textContent = `${arcEvents.length} events generated`;
+  } catch (e) {
+    document.getElementById('arc-status').textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '✦ Generate';
+  }
+});
+
+function renderArcEvents() {
+  const container = document.getElementById('arc-events');
+  if (arcEvents.length === 0) {
+    container.innerHTML = '<div id="arc-empty">Describe a story arc above and click Generate</div>';
+    return;
+  }
+  const locs = config?.locations || [];
+  container.innerHTML = arcEvents.map((ev, i) => `
+    <div class="arc-card" data-idx="${i}">
+      <input type="checkbox" class="arc-check" data-idx="${i}" ${ev._skip ? '' : 'checked'} title="Include this event" />
+      <div>
+        <div class="arc-card-id">${ev.id}</div>
+        <input class="arc-desc-input" data-idx="${i}" value="${(ev.description || '').replace(/"/g, '&quot;')}" placeholder="Description…" />
+      </div>
+      <select class="arc-loc-sel" data-idx="${i}">
+        ${locs.map(l => `<option value="${l}" ${l === ev.location ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+      <select class="arc-time-sel" data-idx="${i}">
+        ${['morning','afternoon','evening'].map(t => `<option value="${t}" ${t === ev.time ? 'selected' : ''}>${t}</option>`).join('')}
+      </select>
+      <button class="arc-card-remove" data-idx="${i}" title="Remove">✕</button>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.arc-check').forEach(el => {
+    el.addEventListener('change', () => { arcEvents[+el.dataset.idx]._skip = !el.checked; });
+  });
+  container.querySelectorAll('.arc-desc-input').forEach(el => {
+    el.addEventListener('input', () => { arcEvents[+el.dataset.idx].description = el.value; });
+  });
+  container.querySelectorAll('.arc-loc-sel').forEach(el => {
+    el.addEventListener('change', () => { arcEvents[+el.dataset.idx].location = el.value; });
+  });
+  container.querySelectorAll('.arc-time-sel').forEach(el => {
+    el.addEventListener('change', () => { arcEvents[+el.dataset.idx].time = el.value; });
+  });
+  container.querySelectorAll('.arc-card-remove').forEach(el => {
+    el.addEventListener('click', () => {
+      arcEvents.splice(+el.dataset.idx, 1);
+      renderArcEvents();
+      document.getElementById('arc-create').disabled = arcEvents.filter(ev => !ev._skip).length === 0;
+    });
+  });
+}
+
+document.getElementById('arc-create').addEventListener('click', async () => {
+  const toCreate = arcEvents.filter(ev => !ev._skip);
+  if (toCreate.length === 0) return;
+  const btn = document.getElementById('arc-create');
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  btn.disabled = true;
+  document.getElementById('arc-status').textContent = '⟳ Creating files…';
+  try {
+    const res = await fetch('/api/create-events', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: toCreate, apiKey: apiKey || undefined }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Server error');
+    let msg = `✓ ${data.created.length} files created`;
+    if (data.skipped.length > 0) msg += `, ${data.skipped.length} skipped (already exist)`;
+    document.getElementById('arc-status').textContent = msg;
+  } catch (e) {
+    document.getElementById('arc-status').textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = arcEvents.filter(ev => !ev._skip).length === 0;
   }
 });
 </script>

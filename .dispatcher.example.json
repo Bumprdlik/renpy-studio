@@ -6,6 +6,8 @@
   "states": ["naked", "towel", "negligee", "underwear", "casual"],
   "port": 3000,
   "tlDir": "tl/czech",
+  "tlLang": "czech",
+  "tlLangLabel": "CZ",
   "characters": ["a", "l", "narrator"],
   "renpyExe": "C:/path/to/renpy-sdk/renpy.exe",
   "anthropicApiKey": "",
