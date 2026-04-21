@@ -289,17 +289,14 @@ function lintLabel(content, labelName) {
         const t = line.trim();
         if (!t || t.startsWith('#')) continue;
         if (t === 'return') hasReturn = true;
-        // Only count show/hide at top-level indent (≤8 spaces) — inside menu branches
-        // are mutually exclusive so counting them together gives false positives
-        const indent = line.match(/^(\s*)/)[1].length;
-        if (indent <= 8) {
-            if (t.match(new RegExp(`^show ${spriteChar}\\b`))) showCount++;
-            if (t.match(new RegExp(`^hide ${spriteChar}\\b`))) hideCount++;
-        }
+        if (t.match(new RegExp(`^show ${spriteChar}\\b`))) showCount++;
+        if (t.match(new RegExp(`^hide ${spriteChar}\\b`))) hideCount++;
     }
 
     if (!hasReturn) issues.push('missing return');
-    if (showCount > hideCount) issues.push(`${spriteChar} shown ${showCount}× but hidden ${hideCount}×`);
+    // Only warn if Winston is shown but never hidden anywhere in the block
+    // (don't count branch-by-branch — menu branches are mutually exclusive)
+    if (showCount > 0 && hideCount === 0) issues.push(`${spriteChar} shown but never hidden`);
     return issues;
 }
 
