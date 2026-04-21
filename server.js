@@ -316,6 +316,50 @@ app.get('/api/lint', (req, res) => {
     res.json(result);
 });
 
+// ── Duplicate detection ───────────────────────────────────────────────────────
+app.get('/api/duplicates', (req, res) => {
+    const THRESHOLD = 0.5;
+    const characters = config.characters || ['a', 'l', 'narrator'];
+    const charPat = characters.join('|');
+    const lineRe = new RegExp(`^\\s+(${charPat})\\s+"((?:[^"\\\\]|\\\\.)*)"`);
+
+    const labelLines = {};
+    for (const loc of config.locations) {
+        const filePath = resolveFilePath(loc);
+        if (!fs.existsSync(filePath)) continue;
+        const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+        for (const state of config.states) {
+            const labelName = buildLabelName(loc, state);
+            const startIdx = lines.findIndex(l => l.trim() === `label ${labelName}:`);
+            if (startIdx === -1) continue;
+            const dialogLines = new Set();
+            for (let i = startIdx + 1; i < lines.length; i++) {
+                if (lines[i].match(/^label\s+/)) break;
+                const m = lines[i].match(lineRe);
+                if (m) dialogLines.add(m[2].trim().toLowerCase());
+            }
+            if (dialogLines.size >= 2) labelLines[`${loc}/${state}`] = dialogLines;
+        }
+    }
+
+    const result = {};
+    const keys = Object.keys(labelLines);
+    for (let i = 0; i < keys.length; i++) {
+        for (let j = i + 1; j < keys.length; j++) {
+            const a = labelLines[keys[i]], b = labelLines[keys[j]];
+            const intersection = [...a].filter(x => b.has(x)).length;
+            const union = new Set([...a, ...b]).size;
+            const similarity = intersection / union;
+            if (similarity >= THRESHOLD) {
+                const pct = Math.round(similarity * 100);
+                (result[keys[i]] = result[keys[i]] || []).push({ key: keys[j], similarity: pct });
+                (result[keys[j]] = result[keys[j]] || []).push({ key: keys[i], similarity: pct });
+            }
+        }
+    }
+    res.json(result);
+});
+
 // ── Call Claude API to translate dialogue and menu strings ─────────────────────
 async function translateWithClaude(blocks, menuStrings, targetLang, apiKey) {
     const Anthropic = require('@anthropic-ai/sdk');

@@ -141,6 +141,7 @@
   .cell.missing  { background: #4a1a1a; color: #c86868; border-color: #6e2d2d; }
   .empty-badge { position: absolute; top: -4px; right: -4px; background: #c8a838; color: #1a1400; font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 4px; line-height: 1.4; }
   .lint-badge  { position: absolute; top: -4px; left: -4px;  background: #c83838; color: #fff;    font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 5px; line-height: 1.4; cursor: help; }
+  .dup-badge   { position: absolute; bottom: -4px; right: -4px; background: #2a6aaa; color: #fff; font-size: 9px; font-weight: 700; border-radius: 8px; padding: 1px 4px; line-height: 1.4; cursor: help; }
 
   /* Hover tooltip */
   #hover-tooltip { position: fixed; background: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 8px 12px; font-size: 12px; pointer-events: none; z-index: 1000; display: none; max-width: 380px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
@@ -280,6 +281,7 @@
       <button class="filter-btn" data-filter="written" title="Written labels only (✓ — contains at least one dialogue line)">✓</button>
       <button class="filter-btn" data-filter="lint" title="Cells with lint warnings only (⚠ — missing return or sprite never hidden)">⚠</button>
       <button class="filter-btn" data-filter="empty" title="Cells with untranslated CZ strings only (orange badge)">🟠</button>
+      <button class="filter-btn" data-filter="dup" title="Cells with dialogue similar to another label (≥50% overlap) — possible copy-paste">≈</button>
     </div>
     <div id="search-wrap">
       <input id="search-input" placeholder="Search dialogue… (min 2 chars)" autocomplete="off" />
@@ -334,6 +336,7 @@ let currentLang = 'en';
 let config = null;
 let gridData = {};
 let tlEmptyData = {};
+let dupData = {};
 let isDirty = false;
 let splitActive = false;
 let kbdLocIdx = 0;
@@ -341,6 +344,9 @@ let kbdStateIdx = 0;
 let currentFilePath = null;
 let currentFileLine = 0;
 let ctxLoc = null, ctxState = null;
+let autoSaveDelay = 0;
+let autoSaveTimer = null;
+let configSnippets = [];
 
 require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
 require(['vs/editor/editor.main'], () => {
@@ -377,16 +383,7 @@ require(['vs/editor/editor.main'], () => {
       const S = monaco.languages.CompletionItemKind.Snippet;
       const I = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
       return { suggestions: [
-        { label: 'alf', kind: S, insertTextRules: I, range, detail: 'Alfred dialogue', insertText: 'a "${1:...}"' },
-        { label: 'lar', kind: S, insertTextRules: I, range, detail: 'Lara dialogue / thought', insertText: 'l "${1:...}"' },
-        { label: 'show-alf', kind: S, insertTextRules: I, range, detail: 'show alfred neutral',
-          insertText: 'show alfred ${1|neutral,surprised,flustered|} at ${2|right,left,center|} with dissolve' },
-        { label: 'hide-alf', kind: S, insertTextRules: I, range, detail: 'hide alfred', insertText: 'hide alfred with dissolve' },
-        { label: 'show-lara', kind: S, insertTextRules: I, range, detail: 'show lara (current outfit)',
-          insertText: 'show expression "lara neutral_" + clothes as lara at ${1|center,left,right|}' },
-        { label: 'clothes-set', kind: S, insertTextRules: I, range, detail: 'Change outfit + show sprite',
-          insertText: ['\\$ clothes = "${1|naked,towel,negligee,underwear,casual|}"',
-            'show lara neutral_${1} at ${2|center,left,right|} with dissolve'].join('\n') },
+        ...configSnippets.map(s => ({ ...s, range })),
         { label: 'menu2', kind: S, insertTextRules: I, range, detail: 'Menu with 2 choices',
           insertText: ['menu:', '    "${1:Choice A}":','        ${2:pass}','    "${3:Choice B}":','        ${4:pass}'].join('\n') },
         { label: 'menu3', kind: S, insertTextRules: I, range, detail: 'Menu with 3 choices',
@@ -417,6 +414,12 @@ require(['vs/editor/editor.main'], () => {
       document.getElementById('save-btn').disabled = false;
       document.getElementById('save-status').textContent = '● unsaved';
     }
+    if (autoSaveDelay > 0) {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        if (isDirty && currentLocation) saveFile(currentLocation);
+      }, autoSaveDelay);
+    }
   });
 
   init();
@@ -430,11 +433,14 @@ async function init() {
   const tll = config.tlLangLabel || 'TL';
   document.getElementById('generate-btn').textContent = `Generate ${tll}`;
   document.getElementById('bulk-gen-btn').textContent = `⟳ Generate All ${tll}`;
+  autoSaveDelay = (config.autoSave || 0) * 1000;
+  buildConfigSnippets();
   await refreshGrid();
   loadStats();
   loadTlEmpty();
   loadLint();
   loadLineCounts();
+  loadDuplicates();
   loadMemory();
   updateCsvBtns();
 
@@ -447,6 +453,7 @@ async function init() {
     loadTlEmpty();
     loadLint();
     loadLineCounts();
+    loadDuplicates();
     if (!isDirty && currentLocation === location && currentState)
       await openLabel(currentLocation, currentState);
   };
@@ -467,6 +474,7 @@ function cellMatchesFilter(loc, state, status) {
   if (gridFilter === 'all') return true;
   if (gridFilter === 'lint') return (lintData[loc]?.[state] || []).length > 0;
   if (gridFilter === 'empty') return (tlEmptyData[loc]?.[state] || 0) > 0;
+  if (gridFilter === 'dup') return (dupData[`${loc}/${state}`] || []).length > 0;
   return status === gridFilter;
 }
 
@@ -549,6 +557,14 @@ function renderGrid() {
         lb.textContent = '⚠';
         lb.title = issues.join('\n');
         cell.appendChild(lb);
+      }
+      const dups = dupData[`${loc}/${state}`] || [];
+      if (dups.length > 0) {
+        const db = document.createElement('span');
+        db.className = 'dup-badge';
+        db.textContent = '≈';
+        db.title = 'Similar to: ' + dups.map(d => `${d.key} (${d.similarity}%)`).join(', ');
+        cell.appendChild(db);
       }
 
       if (selectedCells.has(`${loc}/${state}`)) cell.classList.add('batch-selected');
@@ -653,6 +669,7 @@ async function saveFile(location, updateStatus = true) {
   loadTlEmpty();
   loadLint();
   loadLineCounts();
+  loadDuplicates();
 }
 
 document.getElementById('save-btn').addEventListener('click', () => {
@@ -1327,7 +1344,66 @@ window.addEventListener('keydown', e => {
     document.getElementById('launch-btn').click();
     return;
   }
+
+  // N — jump to next stub/missing cell
+  if (!ctrl && e.key === 'n') {
+    e.preventDefault();
+    navigateToNextGap();
+    return;
+  }
 });
+
+// ── Config snippets ───────────────────────────────────────────────────────────
+function buildConfigSnippets() {
+  if (!config) return;
+  const S = monaco.languages.CompletionItemKind.Snippet;
+  const I = monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet;
+  const chars = config.characters || [];
+  const spriteName = (config.labelPattern || '').split('_')[0];
+  const voices = config.characterVoices || {};
+  configSnippets = [];
+  chars.forEach(c => {
+    const detail = voices[c] ? `${c} — ${voices[c].split(',')[0]}` : `${c} dialogue`;
+    configSnippets.push({ label: c, kind: S, insertTextRules: I, detail, insertText: `${c} "\${1:...}"` });
+  });
+  if (spriteName) {
+    configSnippets.push({ label: `show-${spriteName}`, kind: S, insertTextRules: I,
+      detail: `show ${spriteName}`,
+      insertText: `show ${spriteName} \${1:neutral} at \${2|right,left,center|} with dissolve` });
+    configSnippets.push({ label: `hide-${spriteName}`, kind: S, insertTextRules: I,
+      detail: `hide ${spriteName}`,
+      insertText: `hide ${spriteName} with dissolve` });
+  }
+}
+
+// ── Duplicate detection ───────────────────────────────────────────────────────
+async function loadDuplicates() {
+  dupData = await fetch('/api/duplicates').then(r => r.json());
+  renderGrid();
+}
+
+// ── Next gap navigation ───────────────────────────────────────────────────────
+function navigateToNextGap() {
+  if (!config) return;
+  const locs = config.locations;
+  const states = config.states;
+  let li = kbdLocIdx, si = kbdStateIdx;
+  for (let step = 0; step < locs.length * states.length; step++) {
+    si++;
+    if (si >= states.length) { si = 0; li++; }
+    if (li >= locs.length) li = 0;
+    const status = gridData[locs[li]]?.[states[si]] || 'missing';
+    if (status === 'stub' || status === 'missing') {
+      kbdLocIdx = li; kbdStateIdx = si;
+      openLabel(locs[li], states[si]);
+      renderGrid();
+      document.querySelector('.cell.kbd-focus')?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+  }
+  document.getElementById('save-status').textContent = '✓ No gaps remaining';
+  setTimeout(() => document.getElementById('save-status').textContent = '', 2000);
+}
 
 // ── Story Arc ─────────────────────────────────────────────────────────────────
 let arcEvents = [];

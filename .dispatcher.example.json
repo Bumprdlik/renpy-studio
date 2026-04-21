@@ -5,6 +5,7 @@
   "locations": ["bedroom", "bathroom", "dining_room"],
   "states": ["naked", "towel", "negligee", "underwear", "casual"],
   "port": 3000,
+  "autoSave": 0,
   "tlDir": "tl/czech",
   "tlLang": "czech",
   "tlLangLabel": "CZ",
