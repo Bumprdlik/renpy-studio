@@ -4,5 +4,21 @@
   "filePattern": "alfred/alfred_{location}.rpy",
   "locations": ["bedroom", "bathroom", "dining_room"],
   "states": ["naked", "towel", "negligee", "underwear", "casual"],
-  "port": 3000
+  "port": 3000,
+  "tlDir": "tl/czech",
+  "characters": ["a", "l", "narrator"],
+  "renpyExe": "C:/path/to/renpy-sdk/renpy.exe",
+  "anthropicApiKey": "",
+  "locationDescs": {
+    "bedroom": "bedroom — most private space, character dresses/undresses here",
+    "bathroom": "bathroom — cold tiles, intimate, character after or before shower",
+    "dining_room": "dining room — formal, butler serves meals here"
+  },
+  "stateDescs": {
+    "naked": "completely naked",
+    "towel": "wrapped only in a towel",
+    "negligee": "wearing a sheer negligee",
+    "underwear": "in underwear",
+    "casual": "in casual clothes"
+  }
 }

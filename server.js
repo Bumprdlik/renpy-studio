@@ -235,6 +235,33 @@ app.post('/api/tl-memory/learn', (req, res) => {
     res.json({ ok: true, added, total: memory.length });
 });
 
+// ── Line count ────────────────────────────────────────────────────────────────
+
+function getLabelLineCount(content, labelName) {
+    const lines = content.split('\n');
+    const startIdx = lines.findIndex(l => l.trim() === `label ${labelName}:`);
+    if (startIdx === -1) return 0;
+    let count = 0;
+    for (let i = startIdx + 1; i < lines.length; i++) {
+        if (lines[i].match(/^label\s+/)) break;
+        if (lines[i].match(/^\s+(a|l|narrator)\s+"/)) count++;
+    }
+    return count;
+}
+
+app.get('/api/line-counts', (req, res) => {
+    const result = {};
+    for (const loc of config.locations) {
+        result[loc] = {};
+        const content = fs.existsSync(resolveFilePath(loc))
+            ? fs.readFileSync(resolveFilePath(loc), 'utf-8') : '';
+        for (const state of config.states) {
+            result[loc][state] = getLabelLineCount(content, buildLabelName(loc, state));
+        }
+    }
+    res.json(result);
+});
+
 // ── Lint ──────────────────────────────────────────────────────────────────────
 
 function lintLabel(content, labelName) {
@@ -814,6 +841,17 @@ app.get('/api/tl-empty', (req, res) => {
         }
     }
     res.json(result);
+});
+
+// ── Ren'Py launch ─────────────────────────────────────────────────────────────
+
+app.post('/api/launch', (req, res) => {
+    const renpyExe = config.renpyExe;
+    if (!renpyExe) return res.status(400).json({ error: 'renpyExe not set in .dispatcher.json' });
+    const { spawn } = require('child_process');
+    const renpyProject = path.dirname(path.join(projectPath, config.gameDir));
+    spawn(renpyExe, [renpyProject], { detached: true, stdio: 'ignore' }).unref();
+    res.json({ ok: true });
 });
 
 // ── Stats + Search ───────────────────────────────────────────────────────────

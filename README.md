@@ -17,6 +17,7 @@ Visual editor for the Ren'Py dispatcher pattern — shows a **location × state*
 - **EN/CZ toggle** — switch between source file and `tl/czech/` translation file for any cell
 - **Split view** — in CZ mode, `⧉ Split EN` button shows the EN source as a read-only reference panel beside the CZ editor
 - **Generate CZ** — one-click Czech translation of the current file via Claude API (requires Anthropic API key)
+- **▶ Launch** — opens Ren'Py directly from the editor (requires `renpyExe` in config)
 - **Draft EN** — AI writes English dialogue for a stub label (Claude Sonnet)
 - **Revise** — rewrite an existing label with a one-line instruction (e.g. "add tension", "shorten", "more formal")
 - Auto-creates stub labels when you click a missing cell
@@ -61,6 +62,9 @@ dispatcher-editor --project=/path/to/your-renpy-project
 | `tlDir` | Translation directory relative to `gameDir` (default: `"tl/czech"`) | `"tl/czech"` |
 | `characters` | Character variable names for dialogue detection (default: `["a","l","narrator"]`) | `["a","l","narrator"]` |
 | `anthropicApiKey` | Anthropic API key for Generate CZ (optional, prefer env var) | `"sk-ant-..."` |
+| `renpyExe` | Path to `renpy.exe` for the ▶ Launch button | `"C:/RenPy/renpy.exe"` |
+| `locationDescs` | Human-readable location descriptions injected into Draft EN prompt | `{ "bedroom": "..." }` |
+| `stateDescs` | Human-readable state descriptions injected into Draft EN prompt | `{ "naked": "..." }` |
 
 Copy `.dispatcher.example.json` to `.dispatcher.json` in your project and adjust the values.
 

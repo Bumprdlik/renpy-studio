@@ -43,6 +43,9 @@
   #revise-go:disabled { background: #333; color: #666; cursor: default; }
   #revise-cancel { padding: 4px 8px; background: transparent; color: #666; border: 1px solid #444; border-radius: 3px; cursor: pointer; font-size: 12px; }
   #revise-cancel:hover { color: #ccc; background: #333; }
+  #launch-btn { padding: 5px 14px; background: #2a4a2a; color: #88cc88; border: 1px solid #3a6a3a; border-radius: 3px; cursor: pointer; font-size: 12px; }
+  #launch-btn:hover { background: #3a6a3a; }
+  #launch-btn:disabled { background: #333; color: #666; border-color: #444; cursor: default; }
   #export-csv-btn { padding: 5px 14px; background: #1a3a2a; color: #88c8a8; border: 1px solid #2a5a3a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
   #export-csv-btn:hover { background: #2a5a3a; }
   #import-csv-btn { padding: 5px 14px; background: #1a2a3a; color: #88a8c8; border: 1px solid #2a3a5a; border-radius: 3px; cursor: pointer; font-size: 12px; display: none; }
@@ -190,6 +193,7 @@
     <button class="lang-btn" data-lang="cz">CZ</button>
   </div>
   <input id="api-key-input" type="password" placeholder="Anthropic API key" />
+  <button id="launch-btn">▶ Launch</button>
   <button id="draft-btn">✦ Draft EN</button>
   <button id="revise-btn">✎ Revise</button>
   <button id="bulk-gen-btn">⟳ Generate All CZ</button>
@@ -361,6 +365,7 @@ async function init() {
   loadStats();
   loadTlEmpty();
   loadLint();
+  loadLineCounts();
   loadMemory();
   updateCsvBtns();
 
@@ -372,6 +377,7 @@ async function init() {
     loadStats();
     loadTlEmpty();
     loadLint();
+    loadLineCounts();
     if (!isDirty && currentLocation === location && currentState)
       await openLabel(currentLocation, currentState);
   };
@@ -404,6 +410,12 @@ async function loadStats() {
   }).join(' ');
 }
 
+let lineCountData = {};
+async function loadLineCounts() {
+  lineCountData = await fetch('/api/line-counts').then(r => r.json());
+  renderGrid();
+}
+
 async function loadTlEmpty() {
   tlEmptyData = await fetch('/api/tl-empty').then(r => r.json());
   renderGrid();
@@ -430,7 +442,8 @@ function renderGrid() {
       const td = document.createElement('td');
       const cell = document.createElement('div');
       cell.className = `cell ${status}`;
-      cell.textContent = status === 'written' ? '✓' : status === 'stub' ? '~' : '✗';
+      const lineCount = lineCountData[loc]?.[state] || 0;
+      cell.textContent = status === 'written' ? `✓ ${lineCount}` : status === 'stub' ? '~' : '✗';
       if (loc === currentLocation && state === currentState) cell.classList.add('active');
       if (li === kbdLocIdx && si === kbdStateIdx) cell.classList.add('kbd-focus');
 
@@ -551,6 +564,7 @@ async function saveFile(location, updateStatus = true) {
   loadStats();
   loadTlEmpty();
   loadLint();
+  loadLineCounts();
 }
 
 document.getElementById('save-btn').addEventListener('click', () => {
@@ -1115,6 +1129,23 @@ async function runSearch(q) {
     });
   });
 }
+
+// ── Launch ────────────────────────────────────────────────────────────────────
+document.getElementById('launch-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('launch-btn');
+  btn.disabled = true; btn.textContent = '▶ Launching…';
+  try {
+    const res = await fetch('/api/launch', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    document.getElementById('save-status').textContent = '▶ Ren\'Py launched';
+    setTimeout(() => document.getElementById('save-status').textContent = '', 3000);
+  } catch (e) {
+    document.getElementById('save-status').textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '▶ Launch';
+  }
+});
 
 // ── CSV Export / Import ───────────────────────────────────────────────────────
 function updateCsvBtns() {
