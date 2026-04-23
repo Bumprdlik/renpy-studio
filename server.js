@@ -360,6 +360,71 @@ app.get('/api/duplicates', (req, res) => {
     res.json(result);
 });
 
+// ── Quests ────────────────────────────────────────────────────────────────────
+app.get('/api/quests', (req, res) => {
+    const questsPath = path.join(projectPath, 'quests.json');
+    if (!fs.existsSync(questsPath)) return res.json({ quests: [] });
+
+    const { quests } = JSON.parse(fs.readFileSync(questsPath, 'utf-8'));
+    const eventsDir = path.join(projectPath, config.gameDir, 'events');
+    const characters = config.characters || ['a', 'l', 'narrator'];
+    const charPat = characters.join('|');
+    const dialogRe = new RegExp(`^\\s+(${charPat})\\s+"`);
+
+    const result = quests.map(quest => ({
+        ...quest,
+        events: quest.events.map(ev => {
+            const filePath = path.join(eventsDir, `${ev.id}.rpy`);
+            if (!fs.existsSync(filePath)) return { ...ev, status: 'missing', lines: 0, filePath };
+
+            const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+            const labelIdx = lines.findIndex(l => l.trim() === `label ${ev.id}:`);
+            let dialogLines = 0;
+            if (labelIdx !== -1) {
+                for (let i = labelIdx + 1; i < lines.length; i++) {
+                    if (lines[i].match(/^label\s+/)) break;
+                    if (lines[i].match(dialogRe)) dialogLines++;
+                }
+            }
+            const status = labelIdx === -1 ? 'missing' : dialogLines > 0 ? 'written' : 'stub';
+            return { ...ev, status, lines: dialogLines, filePath };
+        }),
+    }));
+    res.json({ quests: result });
+});
+
+app.post('/api/quests/create-stub', (req, res) => {
+    const { id, label: evLabel, location, time } = req.body;
+    if (!id) return res.status(400).json({ error: 'id required' });
+
+    const eventsDir = path.join(projectPath, config.gameDir, 'events');
+    fs.mkdirSync(eventsDir, { recursive: true });
+    const filePath = path.join(eventsDir, `${id}.rpy`);
+    if (fs.existsSync(filePath)) return res.json({ ok: true, existed: true, filePath });
+
+    const loc = location || config.locations[0] || 'bedroom';
+    const t = time || 'morning';
+    const content =
+`init python:
+    register_event("${id}", {
+        "location": "${loc}",
+        "time": "${t}",
+        "condition": lambda: True,
+        "priority": 10,
+        "repeatable": False,
+    })
+
+label ${id}:
+    scene bg ${loc} with dissolve
+    # ${evLabel || id}
+    # TODO
+    $ seen_events.add("${id}")
+    return
+`;
+    fs.writeFileSync(filePath, content, 'utf-8');
+    res.json({ ok: true, existed: false, filePath });
+});
+
 // ── Call Claude API to translate dialogue and menu strings ─────────────────────
 async function translateWithClaude(blocks, menuStrings, targetLang, apiKey) {
     const Anthropic = require('@anthropic-ai/sdk');
