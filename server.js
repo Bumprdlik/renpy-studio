@@ -360,6 +360,39 @@ app.get('/api/duplicates', (req, res) => {
     res.json(result);
 });
 
+// ── Quest Builder spec ────────────────────────────────────────────────────────
+app.post('/api/save-quest-spec', (req, res) => {
+    try {
+        const spec = req.body;
+        if (!spec.id || !spec.title) return res.status(400).json({ error: 'id and title required' });
+
+        const specPath = path.join(projectPath, 'quest-spec.json');
+        fs.writeFileSync(specPath, JSON.stringify(spec, null, 2), 'utf-8');
+
+        const questsPath = path.join(projectPath, 'quests.json');
+        const questsData = fs.existsSync(questsPath)
+            ? JSON.parse(fs.readFileSync(questsPath, 'utf-8'))
+            : { quests: [] };
+
+        const entry = {
+            id: spec.id,
+            title: spec.title,
+            description: spec.description || '',
+            events: (spec.steps || []).map(s => ({
+                id: s.event_id, label: s.label, location: s.location, time: s.time,
+            })),
+        };
+        const idx = questsData.quests.findIndex(q => q.id === spec.id);
+        if (idx >= 0) questsData.quests[idx] = entry;
+        else questsData.quests.push(entry);
+
+        fs.writeFileSync(questsPath, JSON.stringify(questsData, null, 2), 'utf-8');
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ── Quests ────────────────────────────────────────────────────────────────────
 app.get('/api/quests', (req, res) => {
     const questsPath = path.join(projectPath, 'quests.json');

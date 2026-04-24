@@ -231,6 +231,36 @@
   .qev-create { font-size: 10px; color: #c8a838; padding: 2px 6px; border: 1px solid #3a2a00; border-radius: 2px; background: transparent; cursor: pointer; }
   .qev-create:hover { background: #2a1a00; color: #e8c848; }
   .qev-create:disabled { opacity: 0.5; cursor: default; }
+
+  /* Quest Builder */
+  #qb-btn { padding: 5px 14px; background: #1a2a3a; color: #90c0f0; border: 1px solid #3a6a9a; border-radius: 3px; cursor: pointer; font-size: 12px; }
+  #qb-btn:hover { background: #2a4a6a; }
+  #qb-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000; display: none; align-items: center; justify-content: center; }
+  #qb-inner { background: #252526; border: 1px solid #444; border-radius: 6px; width: 58vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+  #qb-header { padding: 10px 16px; border-bottom: 1px solid #333; font-size: 13px; color: #90c0f0; display: flex; align-items: center; gap: 10px; }
+  #qb-header span { flex: 1; }
+  #qb-meta { padding: 14px 16px; border-bottom: 1px solid #333; display: flex; flex-direction: column; gap: 8px; }
+  .qb-row { display: flex; align-items: center; gap: 8px; }
+  .qb-lbl { font-size: 11px; color: #888; width: 76px; flex-shrink: 0; }
+  .qb-input { flex: 1; background: #1e1e1e; color: #ccc; border: 1px solid #3a3a3a; border-radius: 3px; padding: 4px 8px; font-size: 12px; outline: none; font-family: inherit; }
+  .qb-input:focus { border-color: #3a6a9a; }
+  .qb-textarea { resize: vertical; min-height: 44px; }
+  #qb-steps { flex: 1; overflow-y: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .qb-step { background: #1e1e1e; border: 1px solid #333; border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .qb-step-header { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+  .qb-step-num { font-size: 11px; color: #569cd6; font-family: monospace; flex: 1; }
+  .qb-step-remove { background: transparent; border: none; color: #555; cursor: pointer; font-size: 14px; padding: 0 4px; }
+  .qb-step-remove:hover { color: #c86868; }
+  .qb-step-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .qb-select { background: #1e1e1e; color: #ccc; border: 1px solid #3a3a3a; border-radius: 3px; padding: 4px 6px; font-size: 12px; outline: none; width: 100%; }
+  .qb-checks { display: flex; gap: 16px; padding: 2px 0; }
+  .qb-check-label { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; cursor: pointer; }
+  #qb-footer { padding: 10px 16px; border-top: 1px solid #333; display: flex; align-items: center; gap: 10px; }
+  #qb-add-step { background: transparent; border: 1px solid #3a4a3a; color: #6a9a6a; border-radius: 3px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+  #qb-add-step:hover { background: #1a2a1a; color: #8aba8a; }
+  #qb-save { padding: 5px 16px; background: #1a3a2a; color: #6abf8a; border: 1px solid #3a8a5a; border-radius: 3px; cursor: pointer; font-size: 12px; }
+  #qb-save:hover { background: #2a5a3a; }
+  #qb-status { font-size: 11px; color: #888; flex: 1; text-align: right; }
 </style>
 </head>
 <body>
@@ -269,6 +299,35 @@
     </div>
   </div>
 </div>
+<div id="qb-modal">
+  <div id="qb-inner">
+    <div id="qb-header">
+      <span>📋 Quest Builder</span>
+      <small style="color:#888;font-size:11px">uloží quest-spec.json + quests.json</small>
+      <button id="qb-close">✕</button>
+    </div>
+    <div id="qb-meta">
+      <div class="qb-row">
+        <span class="qb-lbl">Quest ID</span>
+        <input class="qb-input" id="qb-id" placeholder="snake_case_id" />
+      </div>
+      <div class="qb-row">
+        <span class="qb-lbl">Název</span>
+        <input class="qb-input" id="qb-title" placeholder="Název questu (česky)" />
+      </div>
+      <div class="qb-row" style="align-items:flex-start">
+        <span class="qb-lbl" style="padding-top:5px">Popis</span>
+        <textarea class="qb-input qb-textarea" id="qb-desc" placeholder="Krátký popis questu (česky)"></textarea>
+      </div>
+    </div>
+    <div id="qb-steps"></div>
+    <div id="qb-footer">
+      <button id="qb-add-step">+ Přidat krok</button>
+      <span id="qb-status"></span>
+      <button id="qb-save">💾 Uložit quest-spec.json</button>
+    </div>
+  </div>
+</div>
 <div id="hover-tooltip"></div>
 <div id="ctx-menu">
   <div class="ctx-item" id="ctx-open">Open</div>
@@ -286,6 +345,7 @@
   </div>
   <input id="api-key-input" type="password" placeholder="Anthropic API key" title="Anthropic API key for AI features (Draft EN, Revise, Generate CZ, Arc). Alternatively set ANTHROPIC_API_KEY env var or anthropicApiKey in .dispatcher.json." />
   <button id="launch-btn" title="Launch Ren'Py with this project (Ctrl+L). Requires renpyExe in .dispatcher.json.">▶ Launch</button>
+  <button id="qb-btn" title="Quest Builder — definuj quest a kroky, uloží quest-spec.json pro AI generování">📋 Quest</button>
   <button id="arc-btn" title="Story Arc Generator — describe a story arc and AI generates a list of events, which you can create as .rpy files in one click.">📖 Arc</button>
   <button id="draft-btn" title="AI writes English dialogue for the current label (Ctrl+D). Uses characterVoices, locationDescs and stateDescs from config.">✦ Draft EN</button>
   <button id="revise-btn" title="Rewrite the current label with a one-line instruction — shows a diff modal before applying (Ctrl+R). Ctrl+click multiple cells for batch revise without diff.">✎ Revise</button>
@@ -1525,6 +1585,114 @@ function navigateToNextGap() {
   document.getElementById('save-status').textContent = '✓ No gaps remaining';
   setTimeout(() => document.getElementById('save-status').textContent = '', 2000);
 }
+
+// ── Quest Builder ─────────────────────────────────────────────────────────────
+let qbSteps = [];
+
+function slugify(s) {
+  return s.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/^_|_$/g, '');
+}
+
+function renderQbSteps() {
+  const container = document.getElementById('qb-steps');
+  const locs = config?.locations || [];
+  if (qbSteps.length === 0) {
+    container.innerHTML = '<div style="color:#555;font-size:12px;padding:8px 0">Žádné kroky — klikni Přidat krok</div>';
+    return;
+  }
+  container.innerHTML = qbSteps.map((step, i) => `
+    <div class="qb-step">
+      <div class="qb-step-header">
+        <span class="qb-step-num">Krok ${i + 1}</span>
+        <button class="qb-step-remove" data-idx="${i}">✕</button>
+      </div>
+      <div class="qb-step-grid">
+        <div class="qb-row"><span class="qb-lbl" style="width:62px">Event ID</span><input class="qb-input qb-si" data-idx="${i}" data-key="event_id" value="${step.event_id}" placeholder="ev_snake_case" /></div>
+        <div class="qb-row"><span class="qb-lbl" style="width:62px">Label</span><input class="qb-input qb-si" data-idx="${i}" data-key="label" value="${step.label}" placeholder="Krátký popis kroku" /></div>
+        <div class="qb-row"><span class="qb-lbl" style="width:62px">Lokace</span><select class="qb-select qb-si" data-idx="${i}" data-key="location">${locs.map(l => `<option value="${l}" ${l === step.location ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="qb-row"><span class="qb-lbl" style="width:62px">Čas</span><select class="qb-select qb-si" data-idx="${i}" data-key="time">${['morning','afternoon','evening'].map(t => `<option value="${t}" ${t === step.time ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+        <div class="qb-row"><span class="qb-lbl" style="width:62px">Nálada</span><input class="qb-input qb-si" data-idx="${i}" data-key="mood" value="${step.mood}" placeholder="melancholická…" /></div>
+        <div class="qb-checks">
+          <label class="qb-check-label"><input type="checkbox" class="qb-si" data-idx="${i}" data-key="winston_present" ${step.winston_present ? 'checked' : ''} /> Winston přítomen</label>
+          <label class="qb-check-label"><input type="checkbox" class="qb-si" data-idx="${i}" data-key="has_choices" ${step.has_choices ? 'checked' : ''} /> Výběr hráče</label>
+        </div>
+      </div>
+      <div class="qb-row" style="align-items:flex-start">
+        <span class="qb-lbl" style="width:62px;padding-top:5px">Poznámky</span>
+        <textarea class="qb-input qb-textarea qb-si" data-idx="${i}" data-key="notes" placeholder="Poznámky pro AI…" style="min-height:38px">${step.notes}</textarea>
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.qb-step-remove').forEach(btn => {
+    btn.addEventListener('click', () => { qbSteps.splice(+btn.dataset.idx, 1); renderQbSteps(); });
+  });
+  container.querySelectorAll('.qb-si').forEach(el => {
+    el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
+      qbSteps[+el.dataset.idx][el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+  });
+}
+
+document.getElementById('qb-btn').addEventListener('click', () => {
+  document.getElementById('qb-modal').style.display = 'flex';
+});
+document.getElementById('qb-close').addEventListener('click', () => {
+  document.getElementById('qb-modal').style.display = 'none';
+});
+document.getElementById('qb-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('qb-modal'))
+    document.getElementById('qb-modal').style.display = 'none';
+});
+
+document.getElementById('qb-title').addEventListener('input', function() {
+  document.getElementById('qb-id').value = slugify(this.value);
+});
+
+document.getElementById('qb-add-step').addEventListener('click', () => {
+  const questId = document.getElementById('qb-id').value.trim();
+  const n = qbSteps.length + 1;
+  qbSteps.push({
+    event_id: questId ? `ev_${questId}_${n}` : `ev_step_${n}`,
+    label: '', location: config?.locations?.[0] || 'bedroom',
+    time: 'morning', mood: '', winston_present: false, has_choices: false, notes: '',
+  });
+  renderQbSteps();
+});
+
+document.getElementById('qb-save').addEventListener('click', async () => {
+  const id = document.getElementById('qb-id').value.trim();
+  const title = document.getElementById('qb-title').value.trim();
+  if (!id || !title) { document.getElementById('qb-status').textContent = '✗ ID a název jsou povinné'; return; }
+  const spec = {
+    id, title,
+    description: document.getElementById('qb-desc').value.trim(),
+    steps: qbSteps.map(({ event_id, label, location, time, mood, winston_present, has_choices, notes }) => ({
+      event_id, label, location, time,
+      ...(mood ? { mood } : {}),
+      ...(winston_present ? { winston_present: true } : {}),
+      ...(has_choices ? { has_choices: true } : {}),
+      ...(notes ? { notes } : {}),
+    })),
+  };
+  const btn = document.getElementById('qb-save');
+  btn.disabled = true;
+  document.getElementById('qb-status').textContent = '⟳ Ukládám…';
+  try {
+    const res = await fetch('/api/save-quest-spec', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(spec),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Server error');
+    document.getElementById('qb-status').textContent = '✓ Uloženo';
+    if (document.querySelector('.view-tab[data-view="quests"]').classList.contains('active')) loadQuests();
+  } catch (e) {
+    document.getElementById('qb-status').textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ── Story Arc ─────────────────────────────────────────────────────────────────
 let arcEvents = [];
