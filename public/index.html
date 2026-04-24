@@ -660,6 +660,7 @@ function renderGrid() {
       cell.className = `cell ${status}`;
       const lineCount = lineCountData[loc]?.[state] || 0;
       cell.textContent = status === 'written' ? `✓ ${lineCount}` : status === 'stub' ? '~' : '✗';
+      cell.title = status === 'written' ? `${lineCount} dialogue line${lineCount !== 1 ? 's' : ''}` : status === 'stub' ? 'Stub — label exists but has no dialogue' : 'Missing — label not found in file';
       if (!cellMatchesFilter(loc, state, status)) cell.style.opacity = '0.18';
       if (loc === currentLocation && state === currentState) cell.classList.add('active');
       if (li === kbdLocIdx && si === kbdStateIdx) cell.classList.add('kbd-focus');
@@ -669,6 +670,7 @@ function renderGrid() {
         const badge = document.createElement('span');
         badge.className = 'empty-badge';
         badge.textContent = empty;
+        badge.title = `${empty} untranslated string${empty !== 1 ? 's' : ''} in CZ file`;
         cell.appendChild(badge);
       }
       const issues = lintData[loc]?.[state] || [];
