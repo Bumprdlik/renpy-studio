@@ -1,8 +1,8 @@
-# CLAUDE.md — renpy-dispatcher-editor
+# CLAUDE.md — renpy-studio
 
 ## What this is
 
-A local Node.js tool for editing Ren'Py dispatcher pattern files. It reads/writes `.rpy` files from a configured Ren'Py project and shows a coverage grid in the browser.
+A local Node.js tool for editing Ren'Py projects. Features: dispatcher pattern coverage grid, Monaco editor, AI dialogue drafting/revision/translation, Story Arc generator, Quest Builder, and quest progress tracking.
 
 ## Stack
 
@@ -47,6 +47,11 @@ A local Node.js tool for editing Ren'Py dispatcher pattern files. It reads/write
 | POST | `/api/import-csv` | Update tl files in-place from filled CSV; body: `{ csv }` |
 | POST | `/api/launch` | Spawn `config.renpyExe` with project path (detached) |
 | GET | `/api/watch` | SSE stream — pushes `{ location }` when source file changes on disk |
+| GET | `/api/quests` | Returns quests from `quests.json` enriched with event file status |
+| POST | `/api/quests/create-stub` | Creates stub `.rpy` event file; body: `{ id, label, location, time }` |
+| POST | `/api/save-quest-spec` | Saves `quest-spec.json` + updates `quests.json`; body: `{ id, title, description, steps[] }` |
+| POST | `/api/story-arc` | Claude Sonnet generates event list from description; body: `{ description, apiKey? }` |
+| POST | `/api/create-events` | Creates stub `.rpy` files for Arc events; body: `{ events[] }` |
 
 ## Label detection (`getLabelStatus`)
 
@@ -109,6 +114,9 @@ Import: parses CSV, groups by `location` column, for each row with non-empty `cz
 - **CSV import** — hidden `<input type="file">`; reads file text → POST to `/api/import-csv`
 - **Launch** — `Ctrl+L` / button; `POST /api/launch`; detached process, no stdout
 - **Keyboard shortcuts** — `Ctrl+S` save, `Ctrl+D` draft, `Ctrl+R` revise, `Ctrl+G` toggle lang + generate, `Ctrl+L` launch; all skip when focus is in `<input>`/`<textarea>`
+- **Story Arc** — modal textarea → Claude Sonnet generates 4–8 events → user edits list → "Create files" creates stub `.rpy` files in `events/`
+- **Quest Builder** — modal form: quest id/title/description + steps (event_id, location, time, mood, notes, checkboxes); "Save" writes `quest-spec.json` + updates `quests.json`; auto-slugifies title → id
+- **Quests tab** — left panel tab; reads `quests.json` + checks event file status (missing/stub/written); "+ Create" button per missing event; reloads after Quest Builder save
 
 ## File watch
 

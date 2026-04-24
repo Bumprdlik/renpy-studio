@@ -1,41 +1,45 @@
 # Ren'Py Studio
 
-Visual editor for the Ren'Py dispatcher pattern — shows a **location × state** coverage grid and lets you edit `.rpy` files directly in the browser using Monaco editor.
+AI-assisted editor for Ren'Py visual novel projects — coverage grid, Monaco editor, dialogue AI, story arc generator, quest builder, and translation tools.
 
 ## What it does
 
-- Grid overview of all `label <prefix>_<location>_<state>:` combinations
-- Color coding: ✓ written / ~ stub / ✗ missing; written cells show dialogue line count (`✓ 18`)
-- **Grid filter** — filter bar above the grid: Vše / ✗ / ~ / ✓ / ⚠ / 🟠
-- **Progress bar** — `X/Y written` with fill bar at the top of the grid panel
-- **Character stats** — dialogue line counts per character below the legend
-- Click any cell → opens the corresponding `.rpy` file in Monaco editor, scrolled to that label
-- **Keyboard navigation** — arrow keys move focus in the grid, Enter opens the selected cell
-- **Hover over a cell** → tooltip with the first 6 dialogue lines (color coded per character)
-- **Search** — search bar above the grid, searches across all source files, click result to navigate
-- **Keyboard shortcuts** — `Ctrl+S` save, `Ctrl+D` Draft EN, `Ctrl+R` Revise bar, `Ctrl+G` toggle EN↔CZ + Generate, `Ctrl+L` Launch
-- **Auto-refresh** — grid and editor update automatically when `.rpy` files change on disk
-- **EN/CZ toggle** — switch between source file and `tl/czech/` translation file for any cell
-- **Split view** — in CZ mode, `⧉ Split EN` shows the EN source as a read-only reference panel beside the CZ editor
-- **▶ Launch** — opens Ren'Py directly from the editor (requires `renpyExe` in config)
-- **Draft EN** — AI writes English dialogue for a stub label (Claude Sonnet); uses `characterVoices` from config
-- **✎ Revise** — rewrite an existing label with a one-line instruction; shows a before/after diff modal before applying
-- **Batch revise** — Ctrl+click to select multiple cells, then Revise applies the instruction to all and auto-saves
-- **Generate CZ** — one-click Czech translation of the current file via Claude API; uses `characterVoices` for consistent tone
-- **⟳ Generate All CZ** — translates all files in one go
-- **⬇ Export CSV** / **⬆ Import CSV** — export all EN+CZ strings to a spreadsheet, fill in CZ offline, import back (CZ mode)
-- **Untranslated badge** — orange number on cell = empty CZ strings remaining
-- **Lint badge** — red ⚠ on written cells: flags missing `return` or sprite shown but never hidden
-- **Translation memory** — collapsible phrase list; injected into translation prompts for consistency
-- Auto-creates stub labels when you click a missing cell
+### Coverage grid
+- Overview of all `label <prefix>_<location>_<state>:` combinations with color coding: ✓ written / ~ stub / ✗ missing
+- Written cells show dialogue line count (`✓ 18`); filter bar, progress bar, character stats
+- Click any cell → opens `.rpy` in Monaco, scrolled to that label; hover → tooltip with first 6 lines
+- **Keyboard navigation** — arrow keys + Enter; **Search** across all source files
+- **Auto-refresh** — grid updates live when `.rpy` files change on disk
+- **Lint badge** — ⚠ flags missing `return` or sprite shown but never hidden
+- **Untranslated badge** — orange = empty CZ strings remaining
+
+### AI dialogue tools
+- **✦ Draft EN** (`Ctrl+D`) — Claude Sonnet writes a full label from scratch (uses `characterVoices`, `locationDescs`, `stateDescs`)
+- **✎ Revise** (`Ctrl+R`) — rewrite with a one-line instruction; before/after diff modal before applying
+- **Batch revise** — Ctrl+click multiple cells → one instruction revises all, auto-saves
+
+### Translation
+- **EN/CZ toggle** (`Ctrl+G`) + **⧉ Split EN** reference panel
+- **Generate CZ** / **⟳ Generate All CZ** — Claude Haiku translates full files; uses translation memory for consistency
+- **⬇ Export CSV** / **⬆ Import CSV** — offline translation workflow
+- **🧠 Translation memory** — phrase pairs injected into translation prompts
+
+### Quest tools
+- **📋 Quest Builder** — modal form: define quest id, title, description, and steps (location, time, mood, notes, Winston present, player choices); saves `quest-spec.json` for AI generation + updates `quests.json` for tracking
+- **📖 Story Arc** — describe a story arc → Claude generates 4–8 events → edit the list → create stub `.rpy` files in one click
+- **Quests tab** — shows quest progress (missing / stub / written) per event; "+ Create" creates stub files
+
+### Other
+- **▶ Launch** (`Ctrl+L`) — opens Ren'Py directly from the editor
+- **Keyboard shortcuts** — `Ctrl+S` save, `Ctrl+D` draft, `Ctrl+R` revise, `Ctrl+G` translate, `Ctrl+L` launch
 
 ## Installation
 
 ```bash
-git clone git@github.com:Bumprdlik/renpy-dispatcher-editor.git
-cd renpy-dispatcher-editor
+git clone git@github.com:Bumprdlik/renpy-studio.git
+cd renpy-studio
 npm install
-npm link        # makes `dispatcher-editor` available globally
+npm link        # makes `renpy-studio` available globally
 ```
 
 ## Usage
@@ -45,13 +49,13 @@ npm link        # makes `dispatcher-editor` available globally
 
 ```bash
 cd /path/to/your-renpy-project
-dispatcher-editor
+renpy-studio
 ```
 
 Or with an explicit path:
 
 ```bash
-dispatcher-editor --project=/path/to/your-renpy-project
+renpy-studio --project=/path/to/your-renpy-project
 ```
 
 3. Open **http://localhost:3000**
@@ -118,10 +122,16 @@ EN mode: write story  →  CZ mode: Ctrl+G → Generate All CZ
                           — or — Export CSV → fill → Import CSV
 ```
 
+### Quest workflow
+
+1. **📋 Quest** → vyplň název, popis, kroky → **Uložit** → vznikne `quest-spec.json` + `quests.json`
+2. Přepni na tab **Quests** → vidíš event status (missing/stub/written); klikni **+ Create** pro stub soubory
+3. Řekni Claude Code: *"vytvoř quest podle quest-spec.json"* → vygeneruje `.rpy` eventy s dialogy
+
 ### Daily routine
 
 ```
-1. dispatcher-editor              # start server
+1. renpy-studio                   # start server
 2. Filter → ✗ or ~               # find gaps
 3. Ctrl+D draft → Ctrl+R revise  # write EN dialogue
 4. Ctrl+S → cell turns ✓ N
