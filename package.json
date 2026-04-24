@@ -1,10 +1,10 @@
 {
-  "name": "renpy-dispatcher-editor",
+  "name": "renpy-studio",
   "version": "1.0.0",
-  "description": "Visual editor for Ren'Py dispatcher pattern (location × state label grid)",
+  "description": "AI-assisted editor for Ren'Py visual novel projects — dialogue grid, quest builder, translations",
   "main": "server.js",
   "bin": {
-    "dispatcher-editor": "./server.js"
+    "renpy-studio": "./server.js"
   },
   "scripts": {
     "start": "node server.js"
