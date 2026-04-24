@@ -14,6 +14,7 @@ AI-assisted editor for Ren'Py visual novel projects — coverage grid, Monaco ed
 - **Untranslated badge** — orange = empty CZ strings remaining
 
 ### AI dialogue tools
+- **Mode toggle `API | Task`** — switch between direct Anthropic API calls and saving `studio-task.json` for Claude Code to execute (no API key needed in Task mode)
 - **✦ Draft EN** (`Ctrl+D`) — Claude Sonnet writes a full label from scratch (uses `characterVoices`, `locationDescs`, `stateDescs`)
 - **✎ Revise** (`Ctrl+R`) — rewrite with a one-line instruction; before/after diff modal before applying
 - **Batch revise** — Ctrl+click multiple cells → one instruction revises all, auto-saves

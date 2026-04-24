@@ -360,6 +360,19 @@ app.get('/api/duplicates', (req, res) => {
     res.json(result);
 });
 
+// ── Studio task (Task mode — no API key needed) ───────────────────────────────
+app.post('/api/save-task', (req, res) => {
+    try {
+        const spec = req.body;
+        if (!spec.task) return res.status(400).json({ error: 'task field required' });
+        const taskPath = path.join(projectPath, 'studio-task.json');
+        fs.writeFileSync(taskPath, JSON.stringify(spec, null, 2), 'utf-8');
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ── Quest Builder spec ────────────────────────────────────────────────────────
 app.post('/api/save-quest-spec', (req, res) => {
     try {

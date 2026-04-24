@@ -67,6 +67,12 @@
   #diff-reject:hover { background: #333; color: #ccc; }
   #arc-btn { padding: 5px 14px; background: #2a1a3a; color: #c8a0f0; border: 1px solid #5a3a8a; border-radius: 3px; cursor: pointer; font-size: 12px; }
   #arc-btn:hover { background: #4a2a6a; }
+  #mode-toggle { display: flex; }
+  .mode-btn { padding: 4px 10px; background: transparent; color: #555; border: 1px solid #333; cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; }
+  .mode-btn:first-child { border-radius: 3px 0 0 3px; }
+  .mode-btn:last-child { border-radius: 0 3px 3px 0; border-left: none; }
+  .mode-btn.active[data-mode="api"] { background: #2a1a3a; color: #c8a0f0; border-color: #5a3a8a; }
+  .mode-btn.active[data-mode="task"] { background: #1a3a2a; color: #6abf8a; border-color: #3a8a5a; }
   #arc-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 2000; display: none; align-items: center; justify-content: center; }
   #arc-inner { background: #252526; border: 1px solid #444; border-radius: 6px; width: 72vw; max-height: 86vh; display: flex; flex-direction: column; overflow: hidden; }
   #arc-header { padding: 10px 16px; border-bottom: 1px solid #333; font-size: 13px; color: #c8a0f0; display: flex; align-items: center; gap: 10px; }
@@ -343,6 +349,10 @@
     <button class="lang-btn active" data-lang="en">EN</button>
     <button class="lang-btn" data-lang="cz">CZ</button>
   </div>
+  <div id="mode-toggle" title="API = call Anthropic directly | Task = save studio-task.json for Claude Code">
+    <button class="mode-btn active" data-mode="api">API</button>
+    <button class="mode-btn" data-mode="task">Task</button>
+  </div>
   <input id="api-key-input" type="password" placeholder="Anthropic API key" title="Anthropic API key for AI features (Draft EN, Revise, Generate CZ, Arc). Alternatively set ANTHROPIC_API_KEY env var or anthropicApiKey in .dispatcher.json." />
   <button id="launch-btn" title="Launch Ren'Py with this project (Ctrl+L). Requires renpyExe in .dispatcher.json.">▶ Launch</button>
   <button id="qb-btn" title="Quest Builder — definuj quest a kroky, uloží quest-spec.json pro AI generování">📋 Quest</button>
@@ -446,6 +456,18 @@ let ctxLoc = null, ctxState = null;
 let autoSaveDelay = 0;
 let autoSaveTimer = null;
 let configSnippets = [];
+let taskMode = false;
+
+async function saveTask(spec) {
+  const res = await fetch('/api/save-task', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(spec),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Server error');
+  document.getElementById('save-status').textContent = '✓ studio-task.json — řekni Claude: "proveď studio task"';
+  setTimeout(() => document.getElementById('save-status').textContent = '', 7000);
+}
 
 require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
 require(['vs/editor/editor.main'], () => {
@@ -815,14 +837,21 @@ document.getElementById('split-btn').addEventListener('click', async () => {
 function updateDraftBtn() {
   const show = currentLang === 'en' && !!currentLocation;
   document.getElementById('draft-btn').style.display = show ? 'inline-block' : 'none';
-  document.getElementById('api-key-input').style.display = !!currentLocation ? 'inline-block' : 'none';
+  document.getElementById('api-key-input').style.display = (!taskMode && !!currentLocation) ? 'inline-block' : 'none';
 }
 
 document.getElementById('draft-btn').addEventListener('click', async () => {
   if (!currentLocation || !currentState) return;
   const btn = document.getElementById('draft-btn');
+  btn.disabled = true;
+  if (taskMode) {
+    try { await saveTask({ task: 'draft_en', location: currentLocation, state: currentState }); }
+    catch (e) { document.getElementById('save-status').textContent = '✗ ' + e.message; }
+    finally { btn.disabled = false; btn.textContent = '✦ Draft EN'; }
+    return;
+  }
   const apiKey = document.getElementById('api-key-input').value.trim();
-  btn.disabled = true; btn.textContent = 'Drafting…';
+  btn.textContent = 'Drafting…';
   document.getElementById('save-status').textContent = '⟳ writing…';
   try {
     const res = await fetch(`/api/draft-en/${currentLocation}/${currentState}`, {
@@ -915,6 +944,23 @@ document.getElementById('revise-go').addEventListener('click', async () => {
   const btn = document.getElementById('revise-go');
   const apiKey = document.getElementById('api-key-input').value.trim();
   btn.disabled = true; btn.textContent = '…';
+
+  if (taskMode) {
+    try {
+      if (selectedCells.size > 1) {
+        const cells = [...selectedCells].map(k => { const [location, state] = k.split('/'); return { location, state }; });
+        await saveTask({ task: 'revise_en_batch', cells, instruction: instructions });
+      } else {
+        if (!currentLocation || !currentState) return;
+        const labelName = config.labelPattern.replace('{location}', currentLocation).replace('{state}', currentState);
+        const parsed = extractLabelBody(editor.getModel().getLinesContent(), labelName);
+        await saveTask({ task: 'revise_en', location: currentLocation, state: currentState, instruction: instructions, content: parsed?.body || '' });
+      }
+      document.getElementById('revise-bar').style.display = 'none';
+    } catch (e) { document.getElementById('save-status').textContent = '✗ ' + e.message; }
+    finally { btn.disabled = false; btn.textContent = selectedCells.size > 1 ? `✎ Revise (${selectedCells.size})` : '✎ Revise'; }
+    return;
+  }
 
   // Batch mode: more than one selected cell
   if (selectedCells.size > 1) {
@@ -1083,8 +1129,15 @@ function updateGenerateBtn() {
 document.getElementById('generate-btn').addEventListener('click', async () => {
   if (!currentLocation) return;
   const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  if (taskMode) {
+    try { await saveTask({ task: 'translate', location: currentLocation }); }
+    catch (e) { document.getElementById('save-status').textContent = '✗ ' + e.message; }
+    finally { btn.disabled = false; btn.textContent = `Generate ${config?.tlLangLabel || 'CZ'}`; }
+    return;
+  }
   const apiKey = document.getElementById('api-key-input').value.trim();
-  btn.disabled = true; btn.textContent = 'Generating...';
+  btn.textContent = 'Generating...';
   document.getElementById('save-status').textContent = '⟳ translating...';
   try {
     const res = await fetch(`/api/generate-tl/${currentLocation}`, {
@@ -1112,13 +1165,19 @@ document.getElementById('generate-btn').addEventListener('click', async () => {
 // ── Generate All CZ ───────────────────────────────────────────────────────────
 function updateBulkGenBtn() {
   document.getElementById('bulk-gen-btn').style.display = currentLang === 'cz' ? 'inline-block' : 'none';
-  document.getElementById('api-key-input').style.display = currentLang === 'cz' ? 'inline-block' : 'none';
+  document.getElementById('api-key-input').style.display = (!taskMode && currentLang === 'cz') ? 'inline-block' : 'none';
 }
 
 document.getElementById('bulk-gen-btn').addEventListener('click', async () => {
   const btn = document.getElementById('bulk-gen-btn');
-  const apiKey = document.getElementById('api-key-input').value.trim();
   btn.disabled = true;
+  if (taskMode) {
+    try { await saveTask({ task: 'translate_all' }); }
+    catch (e) { document.getElementById('save-status').textContent = '✗ ' + e.message; }
+    finally { btn.disabled = false; btn.textContent = `⟳ Generate All ${config?.tlLangLabel || 'CZ'}`; }
+    return;
+  }
+  const apiKey = document.getElementById('api-key-input').value.trim();
   const locs = config.locations;
   let ok = 0, skipped = 0;
 
@@ -1586,6 +1645,16 @@ function navigateToNextGap() {
   setTimeout(() => document.getElementById('save-status').textContent = '', 2000);
 }
 
+// ── Mode toggle (API / Task) ──────────────────────────────────────────────────
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    taskMode = btn.dataset.mode === 'task';
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('api-key-input').style.display =
+      (!taskMode && !!currentLocation) ? 'inline-block' : 'none';
+  });
+});
+
 // ── Quest Builder ─────────────────────────────────────────────────────────────
 let qbSteps = [];
 
@@ -1722,8 +1791,15 @@ document.getElementById('arc-generate').addEventListener('click', async () => {
   const desc = document.getElementById('arc-desc').value.trim();
   if (!desc) return;
   const btn = document.getElementById('arc-generate');
+  btn.disabled = true;
+  if (taskMode) {
+    try { await saveTask({ task: 'story_arc', description: desc }); }
+    catch (e) { document.getElementById('arc-status').textContent = '✗ ' + e.message; }
+    finally { btn.disabled = false; btn.textContent = '✦ Generate'; }
+    return;
+  }
   const apiKey = document.getElementById('api-key-input').value.trim();
-  btn.disabled = true; btn.textContent = '⟳ Generating…';
+  btn.textContent = '⟳ Generating…';
   document.getElementById('arc-status').textContent = '';
   try {
     const res = await fetch('/api/story-arc', {
