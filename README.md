@@ -1,4 +1,4 @@
-# Ren'Py Dispatcher Editor
+# Ren'Py Studio
 
 Visual editor for the Ren'Py dispatcher pattern — shows a **location × state** coverage grid and lets you edit `.rpy` files directly in the browser using Monaco editor.
 
